@@ -192,8 +192,7 @@ unsigned int nf_conntrack_pkt_threshold __read_mostly;
 EXPORT_SYMBOL(nf_conntrack_pkt_threshold);
 #endif
 
-unsigned int nf_conntrack_hash_rnd __read_mostly;
-EXPORT_SYMBOL(nf_conntrack_hash_rnd);
+static unsigned int nf_conntrack_hash_rnd __read_mostly;
 
 static u32 hash_conntrack_raw(const struct nf_conntrack_tuple *tuple,
 			      const struct net *net)
@@ -202,7 +201,6 @@ static u32 hash_conntrack_raw(const struct nf_conntrack_tuple *tuple,
 	u32 seed;
 
 	get_random_once(&nf_conntrack_hash_rnd, sizeof(nf_conntrack_hash_rnd));
-
 	/* The direction must be ignored, so we hash everything up to the
 	 * destination ports (which is a multiple of 4) and treat the last
 	 * three bytes manually.

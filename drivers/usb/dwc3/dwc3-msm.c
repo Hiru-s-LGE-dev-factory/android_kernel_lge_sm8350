@@ -501,9 +501,8 @@ struct dwc3_msm {
 	struct usb_role_switch *role_switch;
 	bool			ss_release_called;
 	int			orientation_override;
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+
 	struct device_node	*ss_redriver_node;
-#endif
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -2389,9 +2388,7 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc,
 		break;
 	case DWC3_CONTROLLER_PULLUP:
 		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_PULLUP received\n");
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
 		redriver_gadget_pullup(mdwc->ss_redriver_node, value);
-#endif
 		break;
 	case DWC3_GSI_EVT_BUF_ALLOC:
 		dev_dbg(mdwc->dev, "DWC3_GSI_EVT_BUF_ALLOC\n");
@@ -4248,9 +4245,7 @@ int dwc3_msm_release_ss_lane(struct device *dev)
 	flush_work(&mdwc->resume_work);
 	drain_workqueue(mdwc->sm_usb_wq);
 
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
 	redriver_release_usb_lanes(mdwc->ss_redriver_node);
-#endif
 
 	mdwc->ss_release_called = true;
 	if (mdwc->id_state == DWC3_ID_GROUND) {
@@ -4569,9 +4564,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 
 	mutex_init(&mdwc->suspend_resume_mutex);
 
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
 	mdwc->ss_redriver_node = of_parse_phandle(node, "ssusb_redriver", 0);
-#endif
 
 	if (of_property_read_bool(node, "usb-role-switch")) {
 		role_desc.fwnode = dev_fwnode(&pdev->dev);
@@ -4660,9 +4653,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 
 put_dwc3:
 	usb_role_switch_unregister(mdwc->role_switch);
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
 	of_node_put(mdwc->ss_redriver_node);
-#endif
 	platform_device_put(mdwc->dwc3);
 	for (i = 0; i < ARRAY_SIZE(mdwc->icc_paths); i++)
 		icc_put(mdwc->icc_paths[i]);
@@ -4681,9 +4672,7 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 	int i, ret_pm;
 
 	usb_role_switch_unregister(mdwc->role_switch);
-#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
 	of_node_put(mdwc->ss_redriver_node);
-#endif
 	device_remove_file(&pdev->dev, &dev_attr_mode);
 	device_remove_file(&pdev->dev, &dev_attr_speed);
 	device_remove_file(&pdev->dev, &dev_attr_bus_vote);
