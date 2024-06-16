@@ -483,6 +483,9 @@ struct dwc3_msm {
 	struct pm_qos_request pm_qos_req_dma;
 	struct delayed_work perf_vote_work;
 	struct delayed_work sdp_check;
+#ifdef CONFIG_LGE_USB
+	bool usb_compliance_mode;
+#endif
 	struct mutex suspend_resume_mutex;
 
 	enum usb_device_speed override_usb_speed;
@@ -498,6 +501,9 @@ struct dwc3_msm {
 	struct usb_role_switch *role_switch;
 	bool			ss_release_called;
 	int			orientation_override;
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+	struct device_node	*ss_redriver_node;
+#endif
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -2381,6 +2387,12 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc,
 		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT received\n");
 		schedule_work(&mdwc->vbus_draw_work);
 		break;
+	case DWC3_CONTROLLER_PULLUP:
+		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_PULLUP received\n");
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+		redriver_gadget_pullup(mdwc->ss_redriver_node, value);
+#endif
+		break;
 	case DWC3_GSI_EVT_BUF_ALLOC:
 		dev_dbg(mdwc->dev, "DWC3_GSI_EVT_BUF_ALLOC\n");
 		dwc3_gsi_event_buf_alloc(dwc);
@@ -2476,12 +2488,14 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc,
 		break;
 	case DWC3_CONTROLLER_NOTIFY_CLEAR_DB:
 		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_NOTIFY_CLEAR_DB\n");
-		dwc3_msm_write_reg_field(mdwc->base,
-			GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
-			BLOCK_GSI_WR_GO_MASK, true);
-		dwc3_msm_write_reg_field(mdwc->base,
-			GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
-			GSI_EN_MASK, 0);
+		if (mdwc->gsi_reg) {
+			dwc3_msm_write_reg_field(mdwc->base,
+				GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
+				BLOCK_GSI_WR_GO_MASK, true);
+			dwc3_msm_write_reg_field(mdwc->base,
+				GSI_GENERAL_CFG_REG(mdwc->gsi_reg),
+				GSI_EN_MASK, 0);
+		}
 		break;
 	default:
 		dev_dbg(mdwc->dev, "unknown dwc3 event\n");
@@ -2770,6 +2784,10 @@ static int dwc3_msm_update_bus_bw(struct dwc3_msm *mdwc, enum bus_vote bv)
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 	unsigned int bv_index = mdwc->override_bus_vote ?: bv;
 
+#ifdef CONFIG_LGE_USB
+	if (mdwc->usb_compliance_mode && (mdwc->hs_phy->flags & PHY_HOST_MODE))
+		return 0;
+#endif
 	dbg_event(0xFF, "bus_vote_start", bv);
 
 	/* On some platforms SVS does not have separate vote.
@@ -3549,7 +3567,11 @@ static int dwc3_msm_id_notifier(struct notifier_block *nb,
 
 	mdwc->ext_idx = enb->idx;
 
+#ifdef CONFIG_LGE_USB
+	dev_info(mdwc->dev, "host:%ld (id:%d) event received\n", event, id);
+#else
 	dev_dbg(mdwc->dev, "host:%ld (id:%d) event received\n", event, id);
+#endif
 
 	mdwc->id_state = id;
 	dbg_event(0xFF, "id_state", mdwc->id_state);
@@ -3566,7 +3588,14 @@ static void check_for_sdp_connection(struct work_struct *w)
 
 	if (!mdwc->vbus_active)
 		return;
-
+#ifdef CONFIG_LGE_USB
+	/* USB 3.1 compliance equipment usually repoted as floating
+	 * charger as HS dp/dm lines are never connected. Do not
+	 * tear down USB stack if compliance parameter is set
+	 */
+	if (mdwc->usb_compliance_mode)
+		return;
+#endif
 	/* floating D+/D- lines detected */
 	if (dwc->gadget.state < USB_STATE_DEFAULT &&
 		dwc3_gadget_get_link_state(dwc) != DWC3_LINK_STATE_CMPLY) {
@@ -3744,7 +3773,11 @@ static int dwc3_msm_usb_set_role(struct device *dev, enum usb_role role)
 
 	dbg_log_string("cur_role:%s new_role:%s\n", usb_role_string(cur_role),
 						usb_role_string(role));
-
+#ifdef CONFIG_LGE_USB
+	if (role != cur_role)
+		dev_info(dev, "%s: cur_role: %s, new_role:%s\n", __func__,
+			 usb_role_string(cur_role), usb_role_string(role));
+#endif
 	/*
 	 * For boot up without USB cable connected case, don't check
 	 * previous role value to allow resetting USB controller and
@@ -3893,6 +3926,46 @@ static ssize_t speed_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RW(speed);
 
+#ifdef CONFIG_LGE_USB
+static ssize_t usb_compliance_mode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%c\n",
+			mdwc->usb_compliance_mode ? 'Y' : 'N');
+}
+
+static ssize_t usb_compliance_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret = 0;
+	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
+
+	ret = strtobool(buf, &mdwc->usb_compliance_mode);
+
+	if (ret)
+		return ret;
+
+	if (mdwc->usb_compliance_mode) {
+		mdwc->hs_phy->flags |= COMPLIANCE_MODE;
+		mdwc->ss_phy->flags |= COMPLIANCE_MODE;
+	} else {
+		mdwc->hs_phy->flags &= ~COMPLIANCE_MODE;
+		mdwc->ss_phy->flags &= ~COMPLIANCE_MODE;
+	}
+#ifdef CONFIG_LGE_PM
+	{
+		void wa_update_usb_compliance_mode(bool mode);
+		wa_update_usb_compliance_mode(mdwc->usb_compliance_mode);
+	}
+#endif
+
+	return count;
+}
+static DEVICE_ATTR_RW(usb_compliance_mode);
+#endif
+
 static ssize_t bus_vote_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3948,6 +4021,56 @@ static ssize_t bus_vote_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR_RW(bus_vote);
+
+#ifdef CONFIG_LGE_USB
+static char * dwc3_revision(struct dwc3 *dwc)
+{
+	switch (dwc->revision) {
+	case DWC3_REVISION_173A: return "DWC3_REVISION_173A";
+	case DWC3_REVISION_175A: return "DWC3_REVISION_175A";
+	case DWC3_REVISION_180A: return "DWC3_REVISION_180A";
+	case DWC3_REVISION_183A: return "DWC3_REVISION_183A";
+	case DWC3_REVISION_185A: return "DWC3_REVISION_185A";
+	case DWC3_REVISION_187A: return "DWC3_REVISION_187A";
+	case DWC3_REVISION_188A: return "DWC3_REVISION_188A";
+	case DWC3_REVISION_190A: return "DWC3_REVISION_190A";
+	case DWC3_REVISION_194A: return "DWC3_REVISION_194A";
+	case DWC3_REVISION_200A: return "DWC3_REVISION_200A";
+	case DWC3_REVISION_202A: return "DWC3_REVISION_202A";
+	case DWC3_REVISION_210A: return "DWC3_REVISION_210A";
+	case DWC3_REVISION_220A: return "DWC3_REVISION_220A";
+	case DWC3_REVISION_230A: return "DWC3_REVISION_230A";
+	case DWC3_REVISION_240A: return "DWC3_REVISION_240A";
+	case DWC3_REVISION_250A: return "DWC3_REVISION_250A";
+	case DWC3_REVISION_260A: return "DWC3_REVISION_260A";
+	case DWC3_REVISION_270A: return "DWC3_REVISION_270A";
+	case DWC3_REVISION_280A: return "DWC3_REVISION_280A";
+	case DWC3_REVISION_290A: return "DWC3_REVISION_290A";
+	case DWC3_REVISION_300A: return "DWC3_REVISION_300A";
+	case DWC3_REVISION_310A: return "DWC3_REVISION_310A";
+	case DWC3_REVISION_330A: return "DWC3_REVISION_330A";
+	case DWC3_REVISION_IS_DWC31:   return "DWC3_REVISION_IS_DWC31";
+	case DWC3_USB31_REVISION_110A: return "DWC3_USB31_REVISION_110A";
+	case DWC3_USB31_REVISION_120A: return "DWC3_USB31_REVISION_120A";
+	case DWC3_USB31_REVISION_160A: return "DWC3_USB31_REVISION_160A";
+	case DWC3_USB31_REVISION_170A: return "DWC3_USB31_REVISION_170A";
+	case DWC3_USB31_REVISION_180A: return "DWC3_USB31_REVISION_180A";
+	case DWC3_USB31_REVISION_190A: return "DWC3_USB31_REVISION_190A";
+	default: return "Unknown";
+	}
+}
+
+static ssize_t usb_controller_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
+	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			dwc3_revision(dwc));
+}
+static DEVICE_ATTR_RO(usb_controller);
+#endif
 
 static int dwc3_msm_interconnect_vote_populate(struct dwc3_msm *mdwc)
 {
@@ -4108,7 +4231,6 @@ int dwc3_msm_release_ss_lane(struct device *dev)
 {
 	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
 	struct dwc3 *dwc = NULL;
-	struct device_node *ssusb_redriver_node;
 
 	if (mdwc == NULL) {
 		dev_err(dev, "dwc3-msm is not initialized yet.\n");
@@ -4126,9 +4248,9 @@ int dwc3_msm_release_ss_lane(struct device *dev)
 	flush_work(&mdwc->resume_work);
 	drain_workqueue(mdwc->sm_usb_wq);
 
-	ssusb_redriver_node =
-		of_parse_phandle(mdwc->dev->of_node, "ssusb_redriver", 0);
-	redriver_release_usb_lanes(ssusb_redriver_node);
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+	redriver_release_usb_lanes(mdwc->ss_redriver_node);
+#endif
 
 	mdwc->ss_release_called = true;
 	if (mdwc->id_state == DWC3_ID_GROUND) {
@@ -4407,6 +4529,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to get dwc3 device\n");
 		goto put_dwc3;
 	}
+#ifdef CONFIG_LGE_USB
+	dwc->usb_compliance_mode = &mdwc->usb_compliance_mode;
+#endif
 
 	/*
 	 * On platforms with SS PHY that do not support ss_phy_irq for wakeup
@@ -4443,6 +4568,10 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	}
 
 	mutex_init(&mdwc->suspend_resume_mutex);
+
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+	mdwc->ss_redriver_node = of_parse_phandle(node, "ssusb_redriver", 0);
+#endif
 
 	if (of_property_read_bool(node, "usb-role-switch")) {
 		role_desc.fwnode = dev_fwnode(&pdev->dev);
@@ -4522,11 +4651,18 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	device_create_file(&pdev->dev, &dev_attr_mode);
 	device_create_file(&pdev->dev, &dev_attr_speed);
 	device_create_file(&pdev->dev, &dev_attr_bus_vote);
+#ifdef CONFIG_LGE_USB
+	device_create_file(&pdev->dev, &dev_attr_usb_compliance_mode);
+	device_create_file(&pdev->dev, &dev_attr_usb_controller);
+#endif
 
 	return 0;
 
 put_dwc3:
 	usb_role_switch_unregister(mdwc->role_switch);
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+	of_node_put(mdwc->ss_redriver_node);
+#endif
 	platform_device_put(mdwc->dwc3);
 	for (i = 0; i < ARRAY_SIZE(mdwc->icc_paths); i++)
 		icc_put(mdwc->icc_paths[i]);
@@ -4545,9 +4681,15 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 	int i, ret_pm;
 
 	usb_role_switch_unregister(mdwc->role_switch);
+#if defined (CONFIG_USB_REDRIVER_NB7VPQ904M)
+	of_node_put(mdwc->ss_redriver_node);
+#endif
 	device_remove_file(&pdev->dev, &dev_attr_mode);
 	device_remove_file(&pdev->dev, &dev_attr_speed);
 	device_remove_file(&pdev->dev, &dev_attr_bus_vote);
+#ifdef CONFIG_LGE_USB
+	device_remove_file(&pdev->dev, &dev_attr_usb_controller);
+#endif
 
 	if (mdwc->dpdm_nb.notifier_call) {
 		regulator_unregister_notifier(mdwc->dpdm_reg, &mdwc->dpdm_nb);
@@ -4740,7 +4882,13 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 	}
 
 	if (on) {
+#ifdef CONFIG_LGE_USB
+		dev_info(mdwc->dev, "%s: turn on host\n", __func__);
+#else
 		dev_dbg(mdwc->dev, "%s: turn on host\n", __func__);
+
+#endif
+
 		mdwc->hs_phy->flags |= PHY_HOST_MODE;
 		dbg_event(0xFF, "hs_phy_flag:%x", mdwc->hs_phy->flags);
 		pm_runtime_get_sync(mdwc->dev);
@@ -4820,7 +4968,11 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		schedule_delayed_work(&mdwc->perf_vote_work,
 				msecs_to_jiffies(1000 * PM_QOS_SAMPLE_SEC));
 	} else {
+#ifdef CONFIG_LGE_USB
+		dev_info(mdwc->dev, "%s: turn off host\n", __func__);
+#else
 		dev_dbg(mdwc->dev, "%s: turn off host\n", __func__);
+#endif
 
 		if (!IS_ERR_OR_NULL(mdwc->vbus_reg))
 			ret = regulator_disable(mdwc->vbus_reg);
@@ -4896,8 +5048,13 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		atomic_read(&mdwc->dev->power.usage_count));
 
 	if (on) {
+#ifdef CONFIG_LGE_USB
+		dev_info(mdwc->dev, "%s: turn on gadget %s\n",
+					__func__, dwc->gadget.name);
+#else
 		dev_dbg(mdwc->dev, "%s: turn on gadget %s\n",
 					__func__, dwc->gadget.name);
+#endif
 
 		dwc3_override_vbus_status(mdwc, true);
 		usb_phy_notify_connect(mdwc->hs_phy, USB_SPEED_HIGH);
@@ -4935,8 +5092,13 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		schedule_delayed_work(&mdwc->perf_vote_work,
 				msecs_to_jiffies(1000 * PM_QOS_SAMPLE_SEC));
 	} else {
+#ifdef CONFIG_LGE_USB
+		dev_info(mdwc->dev, "%s: turn off gadget %s\n",
+					__func__, dwc->gadget.name);
+#else
 		dev_dbg(mdwc->dev, "%s: turn off gadget %s\n",
 					__func__, dwc->gadget.name);
+#endif
 		cancel_delayed_work_sync(&mdwc->perf_vote_work);
 		msm_dwc3_perf_vote_update(mdwc, false);
 		pm_qos_remove_request(&mdwc->pm_qos_req_dma);
@@ -4962,6 +5124,36 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 
 static int get_chg_type(struct dwc3_msm *mdwc)
 {
+#if defined(CONFIG_LGE_USB) && defined(CONFIG_QTI_BATTERY_CHARGER)
+	union power_supply_propval pval;
+	int ret, chg_type;
+
+	if (!mdwc->usb_psy && of_property_read_bool(mdwc->dev->of_node,
+			"qcom,usb-charger")) {
+		mdwc->usb_psy = power_supply_get_by_name("usb");
+		if (!mdwc->usb_psy) {
+			dev_err(mdwc->dev, "Could not get usb psy\n");
+			return -ENODEV;
+		}
+	}
+
+	if (!mdwc->usb_psy)
+		return -ENODEV;
+
+	ret = power_supply_get_property(mdwc->usb_psy,
+			POWER_SUPPLY_PROP_USB_TYPE, &pval);
+	if (ret) {
+		dev_dbg(mdwc->dev, "power supply error when getting property\n");
+		return -ENODEV;
+	}
+
+	chg_type = pval.intval;
+
+	if (chg_type == POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID)
+		return QTI_POWER_SUPPLY_TYPE_USB_FLOAT;
+
+	return -ENODEV;
+#else
 	int ret, value;
 
 	if (!mdwc->chg_type) {
@@ -4980,6 +5172,7 @@ static int get_chg_type(struct dwc3_msm *mdwc)
 	}
 
 	return value;
+#endif
 }
 
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
@@ -5065,7 +5258,11 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 	}
 
 	state = dwc3_drd_state_string(mdwc->drd_state);
+#ifdef CONFIG_LGE_USB
+	dev_info(mdwc->dev, "%s state\n", state);
+#else
 	dev_dbg(mdwc->dev, "%s state\n", state);
+#endif
 	dbg_event(0xFF, state, 0);
 
 	/* Check OTG state */

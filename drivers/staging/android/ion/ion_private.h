@@ -32,6 +32,11 @@ struct ion_device {
 	struct plist_head heaps;
 	struct dentry *debug_root;
 	int heap_cnt;
+#ifdef CONFIG_ION_DEBUGGING
+	struct rb_root buffers;
+	/* buffer_lock used for adding and removing buffers */
+	struct mutex buffer_lock;
+#endif
 };
 
 /* ion_buffer manipulators */
@@ -52,6 +57,10 @@ extern int ion_free(struct ion_buffer *buffer);
 
 /* ion heap helpers */
 extern int ion_heap_cleanup(struct ion_heap *heap);
+
+#ifdef CONFIG_MIGRATE_HIGHORDER
+size_t ion_heap_free_highorder_size(struct ion_heap *heap);
+#endif
 
 u64 ion_get_total_heap_bytes(void);
 

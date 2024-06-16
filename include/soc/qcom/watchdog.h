@@ -149,6 +149,9 @@ struct msm_watchdog_data {
 	struct qcom_irq_info ipi_counts[NR_IPI];
 	unsigned int tot_irq_count[NR_CPUS];
 	atomic_t irq_counts_running;
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	unsigned long long alive_time[NR_CPUS];
+#endif
 };
 
 extern void qcom_wdt_trigger_bite(void);

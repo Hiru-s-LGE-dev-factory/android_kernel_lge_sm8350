@@ -19,6 +19,13 @@ config CPU_FREQ
 
 if CPU_FREQ
 
+config LGE_TOUCH_INPUT_CPU_BOOST
+	bool "LGE's Touch Input Boost - use cpu-boost_lge.c"
+	help
+	  Export LGE's Touch Input Boost - use cpu-boost_lge.c.
+
+	  If in doubt, say N.
+
 config CPU_FREQ_GOV_ATTR_SET
 	bool
 

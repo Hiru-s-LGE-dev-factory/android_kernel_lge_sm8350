@@ -497,7 +497,13 @@ key_ref_t search_cred_keyrings_rcu(struct keyring_search_context *ctx)
 		}
 	}
 	/* or search the user-session keyring */
-	else if ((user_session = get_user_session_keyring_rcu(cred))) {
+
+	/*
+	 * LGE Modified : encryption-vpn@lge.com
+	 * ecryptfs cannot find user session_keyring
+	 * if there is session_keyring too.
+	 */
+	if ((user_session = get_user_session_keyring_rcu(cred))) {
 		key_ref = keyring_search_rcu(make_key_ref(user_session, 1),
 					     ctx);
 		key_put(user_session);

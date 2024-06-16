@@ -111,6 +111,35 @@ static struct heap_types_info {
 static int msm_ion_debug_heap_show(struct seq_file *s, void *unused)
 {
 	struct msm_ion_heap *msm_heap = s->private;
+#ifdef CONFIG_ION_DEBUGGING
+	struct ion_heap *heap = &msm_heap->ion_heap;
+	struct ion_device *dev = heap->dev;
+	struct rb_node *n;
+	size_t total_size = 0;
+
+	seq_printf(s, "%16s %16s %16s %16s %16s\n", "client", "pid", "thread", "tid", "size");
+
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+	mutex_lock(&dev->buffer_lock);
+	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
+		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer, node);
+		if (buffer->heap->id != heap->id)
+			continue;
+		total_size += buffer->size;
+		seq_printf(s, "%16s %16u %16s %16u %16zu\n",
+						buffer->task_comm, buffer->pid,
+						buffer->thread_comm, buffer->tid,
+						buffer->size);
+	}
+	mutex_unlock(&dev->buffer_lock);
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+	seq_printf(s, "%16s %16llu\n", "buffers", heap->num_of_buffers);
+	seq_printf(s, "%16s %16llu\n", "total size", heap->num_of_alloc_bytes);
+	seq_printf(s, "%16s %16llu\n", "peak allocated", heap->alloc_bytes_wm);
+	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
+		seq_printf(s, "%16s %16zu\n", "deferred free", heap->free_list_size);
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+#endif
 
 	if (msm_heap && msm_heap->msm_heap_ops &&
 	    msm_heap->msm_heap_ops->debug_show)

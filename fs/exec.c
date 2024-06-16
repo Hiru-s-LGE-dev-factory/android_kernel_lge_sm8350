@@ -72,6 +72,17 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+/* LGE_CHANGE_S
+ *
+ * do read/mmap profiling during booting
+ * in order to use the data as readahead args
+ *
+ * byungchul.park@lge.com 20120503
+ */
+#ifdef CONFIG_LGE_SREADAHEAD
+#include "sreadahead_prof.h"
+#endif
+/* LGE_CHAGE_E */
 
 int suid_dumpable = 0;
 
@@ -149,6 +160,17 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
 		goto exit;
 
 	fsnotify_open(file);
+/* LGE_CHANGE_S
+ *
+ * do read/mmap profiling during booting
+ * in order to use the data as readahead args
+ *
+ * byungchul.park@lge.com 20120503
+ */
+#ifdef CONFIG_LGE_SREADAHEAD
+	sreadahead_prof(file, 0, 0);
+#endif
+/* LGE_CHANGE_E */
 
 	error = -ENOEXEC;
 
@@ -864,6 +886,18 @@ static struct file *do_open_execat(int fd, struct filename *name, int flags)
 
 	if (path_noexec(&file->f_path))
 		goto exit;
+
+/* LGE_CHANGE_S
+ *
+ * do read/mmap profiling during booting
+ * in order to use the data as readahead args
+ *
+ * byungchul.park@lge.com 20120503
+ */
+#ifdef CONFIG_LGE_SREADAHEAD
+	sreadahead_prof(file, 0, 0);
+#endif
+/* LGE_CHANGE_E */
 
 	err = deny_write_access(file);
 	if (err)

@@ -19,6 +19,9 @@
 #define EUD_SPOOF_DISCONNECT		BIT(6)
 #define EUD_SPOOF_CONNECT		BIT(7)
 #define PHY_SUS_OVERRIDE		BIT(8)
+#ifdef CONFIG_LGE_USB
+#define COMPLIANCE_MODE		BIT(9)
+#endif
 
 /*
  * The following are bit fields describing the USB BAM options.

@@ -2175,6 +2175,24 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_LFS_MMC
+/*
+ * Reset vreg by ensuring it is off during probe. A call
+ * to enable vreg is needed to balance disable vreg
+ */
+
+static int sdhci_msm_vreg_reset(struct sdhci_msm_host *msm_host)
+{
+	int ret;
+
+	ret = sdhci_msm_setup_vreg(msm_host, 1, true);
+	if (ret)
+		return ret;
+	ret = sdhci_msm_setup_vreg(msm_host, 0, true);
+	return ret;
+}
+#endif
+
 /* This init function should be called only once for each SDHC slot */
 static int sdhci_msm_vreg_init(struct device *dev,
 				struct sdhci_msm_host *msm_host,
@@ -2206,6 +2224,16 @@ static int sdhci_msm_vreg_init(struct device *dev,
 	}
 	if (curr_vdd_io_reg)
 		ret = sdhci_msm_vreg_init_reg(dev, curr_vdd_io_reg);
+
+#ifdef CONFIG_LFS_MMC
+	/*
+	 * vreg reset is needed to recognize card insertion at early stage (0~4sec)
+	 * caused by pin shortage with sim tray.
+	*/
+	if (mmc_card_is_removable(msm_host->mmc))
+		ret = sdhci_msm_vreg_reset(msm_host);
+#endif
+
 out:
 	if (ret)
 		dev_err(dev, "vreg reset failed (%d)\n", ret);
@@ -3470,12 +3498,22 @@ static const struct sdhci_ops sdhci_msm_ops = {
 };
 
 static const struct sdhci_pltfm_data sdhci_msm_pdata = {
+#ifdef CONFIG_LFS_MMC
+	.quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
+		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
+		  SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC |
+		  SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12|
+		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
+		  SDHCI_QUIRK_NO_LED,
+#else
 	.quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 		  SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC |
 		  SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12 |
 		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK,
+#endif
 
 	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 	.ops = &sdhci_msm_ops,
@@ -4064,6 +4102,22 @@ static ssize_t err_stats_show(struct device *dev,
 		host->mmc->err_stats[MMC_ERR_TUNING]);
 	strlcat(buf, tmp, PAGE_SIZE);
 
+	scnprintf(tmp, sizeof(tmp), "# CMDQ RED Errors: %d\n",
+		host->mmc->err_stats[MMC_ERR_CMDQ_RED]);
+	strlcat(buf, tmp, PAGE_SIZE);
+
+	scnprintf(tmp, sizeof(tmp), "# CMDQ GCE Errors: %d\n",
+		host->mmc->err_stats[MMC_ERR_CMDQ_GCE]);
+	strlcat(buf, tmp, PAGE_SIZE);
+
+	scnprintf(tmp, sizeof(tmp), "# CMDQ ICCE Errors: %d\n",
+		host->mmc->err_stats[MMC_ERR_CMDQ_ICCE]);
+	strlcat(buf, tmp, PAGE_SIZE);
+
+	scnprintf(tmp, sizeof(tmp), "# CMDQ Request Timedout: %d\n",
+		host->mmc->err_stats[MMC_ERR_CMDQ_REQ_TIMEOUT]);
+	strlcat(buf, tmp, PAGE_SIZE);
+
 	scnprintf(tmp, sizeof(tmp), "# Request Timedout Error: %d\n",
 		host->mmc->err_stats[MMC_ERR_REQ_TIMEOUT]);
 	strlcat(buf, tmp, PAGE_SIZE);
@@ -4072,9 +4126,23 @@ static ssize_t err_stats_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(err_stats);
 
+static ssize_t dbg_state_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int dbg_en = 0;
+
+#if defined(CONFIG_MMC_IPC_LOGGING)
+	dbg_en = 1;
+#endif
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", dbg_en);
+}
+static DEVICE_ATTR_RO(dbg_state);
+
 static struct attribute *sdhci_msm_sysfs_attrs[] = {
 	&dev_attr_err_state.attr,
 	&dev_attr_err_stats.attr,
+	&dev_attr_dbg_state.attr,
 	NULL
 };
 
@@ -4099,6 +4167,9 @@ static void sdhci_msm_set_caps(struct sdhci_msm_host *msm_host)
 {
 	msm_host->mmc->caps |= MMC_CAP_AGGRESSIVE_PM;
 	msm_host->mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_NEED_RSP_BUSY;
+#ifdef CONFIG_LFS_MMC_SD_WAKE_ENABLE
+	msm_host->mmc->caps |= MMC_CAP_CD_WAKE;
+#endif
 }
 
 static int sdhci_msm_probe(struct platform_device *pdev)
@@ -4144,6 +4215,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	 * the data associated with the version info.
 	 */
 	var_info = of_device_get_match_data(&pdev->dev);
+
+	if (!var_info) {
+		dev_err(&pdev->dev, "Compatible string not found\n");
+		goto pltfm_free;
+	}
 
 	msm_host->mci_removed = var_info->mci_removed;
 	msm_host->restore_dll_config = var_info->restore_dll_config;
@@ -4355,7 +4431,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 
 #if defined(CONFIG_SDC_QTI)
 	host->timeout_clk_div = 4;
+#ifdef CONFIG_LFS_MMC_CLK_SCALE_DISABLE
+	msm_host->mmc->caps2 &= ~MMC_CAP2_CLK_SCALE;
+#else
 	msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
+#endif
 #endif
 	sdhci_msm_setup_pm(pdev, msm_host);
 

@@ -25,6 +25,10 @@
 #include <linux/seq_buf.h>
 #endif
 
+#ifdef CONFIG_QCOM_MEM_OFFLINE
+extern unsigned long get_totalram_pages_count_inc_offlined(void);
+#endif
+
 void __attribute__((weak)) arch_report_meminfo(struct seq_file *m)
 {
 }
@@ -78,7 +82,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		pages[lru] = global_node_page_state(NR_LRU_BASE + lru);
 
 	available = si_mem_available();
-	i.totalram += get_offlined_pages_count();
+
+#ifdef CONFIG_QCOM_MEM_OFFLINE
+	i.totalram = get_totalram_pages_count_inc_offlined();
+#endif
+
 	sreclaimable = global_node_page_state(NR_SLAB_RECLAIMABLE);
 	sunreclaim = global_node_page_state(NR_SLAB_UNRECLAIMABLE);
 

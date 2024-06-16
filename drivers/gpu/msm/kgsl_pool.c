@@ -306,6 +306,7 @@ static gfp_t kgsl_gfp_mask(int page_order)
 	return gfp_mask;
 }
 
+#ifndef CONFIG_ALLOC_BUFFERS_IN_4K_CHUNKS
 /*
  * Return true if the pool of specified page size is supported
  * or no pools are supported otherwise return false.
@@ -334,6 +335,12 @@ static int kgsl_get_page_size(size_t size, unsigned int align)
 
 	return PAGE_SIZE;
 }
+#else
+static inline int kgsl_get_page_size(size_t size, unsigned int align)
+{
+	return PAGE_SIZE;
+}
+#endif
 
 /*
  * kgsl_pool_alloc_page() - Allocate a page of requested size
@@ -449,9 +456,12 @@ int kgsl_pool_alloc_pages(u64 size, struct page ***pages, struct device *dev)
 		GFP_KERNEL | __GFP_NORETRY | __GFP_NOWARN);
 	u32 page_size, align;
 	u64 len = size;
+	bool memworker_flush_done = false;
 
-	if (!local)
+	if (!local){
+		printk("## kgsl_pool_alloc_pages - kvcalloc failed");
 		return -ENOMEM;
+	}
 
 	/* Start with 1MB alignment to get the biggest page we can */
 	align = ilog2(SZ_1M);
@@ -464,7 +474,12 @@ int kgsl_pool_alloc_pages(u64 size, struct page ***pages, struct device *dev)
 
 		if (ret == -EAGAIN)
 			continue;
-		else if (ret <= 0) {
+		else if (ret == -ENOMEM && !memworker_flush_done) {
+			/* if OoM, retry once after flushing mem_worker */
+			kthread_flush_worker(kgsl_driver.mem_worker);
+			memworker_flush_done = true;
+			continue;
+		} else if (ret <= 0) {
 			int i;
 
 			for (i = 0; i < count; ) {
@@ -593,6 +608,11 @@ static int kgsl_of_parse_mempool(struct kgsl_page_pool *pool,
 	spin_lock_init(&pool->list_lock);
 	INIT_LIST_HEAD(&pool->page_list);
 
+#ifdef CONFIG_ALLOC_BUFFERS_IN_4K_CHUNKS
+	if (order > 0)
+		pr_err("kgsl: pool order:%d not supprted\n", order);
+	else
+#endif
 	kgsl_pool_reserve_pages(pool, node);
 
 	return 0;

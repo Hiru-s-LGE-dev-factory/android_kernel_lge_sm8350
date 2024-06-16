@@ -63,6 +63,9 @@ obj-$(CONFIG_TEST_IDA) += test_ida.o
 obj-$(CONFIG_TEST_KASAN) += test_kasan.o
 CFLAGS_test_kasan.o += -fno-builtin
 CFLAGS_test_kasan.o += $(call cc-disable-warning, vla)
+ifeq ($(cc-name),clang)
+CFLAGS_test_kasan.o += -Wno-vla
+endif
 obj-$(CONFIG_TEST_UBSAN) += test_ubsan.o
 CFLAGS_test_ubsan.o += $(call cc-disable-warning, vla)
 UBSAN_SANITIZE_test_ubsan.o := y

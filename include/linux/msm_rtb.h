@@ -6,8 +6,12 @@
 #ifndef __MSM_RTB_H__
 #define __MSM_RTB_H__
 
+#if defined(CONFIG_MACH_LGE)
+#include <asm/io.h>
+#else
 #ifdef CONFIG_QCOM_RTB_QGKI
 #include <asm/io.h>
+#endif
 #endif
 
 /*

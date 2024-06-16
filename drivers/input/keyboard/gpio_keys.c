@@ -28,6 +28,35 @@
 #include <linux/of_irq.h>
 #include <linux/spinlock.h>
 #include <dt-bindings/input/gpio-keys.h>
+#if defined(CONFIG_LGE_SUPPORT_HALLIC)
+#include <linux/of_platform.h>
+#include <linux/of_gpio.h>
+#include <linux/hall_ic.h>
+#endif
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include <soc/qcom/lge/lge_handle_panic.h>
+#endif
+
+#if defined(CONFIG_LGE_SUPPORT_HALLIC)
+struct hallic_dev sdev = {
+	.name = "smartcover",
+	.state = 0,
+	.state_front = 0,
+	.state_back = 0,
+};
+
+struct hallic_dev ndev = {
+	.name = "nfccover",
+	.state = 0,
+};
+struct hallic_dev ldev = {
+        .name = "slidedetect",
+        .state = 0,
+};
+
+extern void lge_slide_status_notify(struct hallic_dev *hdev, int state);
+#endif
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -372,6 +401,39 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 			input_event(input, type, button->code, button->value);
 	} else {
 		input_event(input, type, *bdata->code, state);
+		pr_err("gpio_keys_report_event: code(%d), value(%d)\n", button->code, state);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+		lge_gen_key_panic(button->code, state);
+#endif
+#if defined(CONFIG_LGE_SUPPORT_HALLIC)
+		if (!strncmp(bdata->button->desc, "smart_cover", 11)) {
+			if (sdev.state_front != state) {
+				sdev.state_front = state;
+				hallic_set_state(&sdev, state);
+				pr_info("[Display] smart_cover state switched to %s \n", (state ? "CLOSE" : "OPEN"));
+			}
+		}
+		if (!strncmp(bdata->button->desc, "nfc_cover", 9)) {
+			if (ndev.state != !!state) {
+				hallic_set_state(&ndev, state);
+				pr_info("[Display] nfc_cover state switched to %s \n", (state ? "CLOSE" : "OPEN"));
+			} else {
+				pr_err("[Display] %s: discard wrong nfc_cover irq %s \n", __func__, (state ? "CLOSE" : "OPEN"));
+				return;
+			}
+		}
+		if (!strncmp(bdata->button->desc, "slide_detect", 12)) {
+			if (ldev.state != !!state) {
+				hallic_set_state(&ldev, state);
+				lge_slide_status_notify(&ldev, state);
+				pr_info("[Display] slide_detect state switched to %s \n", (state ? "OPEN" : "CLOSE"));
+			} else {
+				pr_err("[Display] %s: discard wrong slide_detect irq %s \n", __func__, (state ? "OPEN" : "CLOSE"));
+				return;
+			}
+		}
+
+#endif
 	}
 	input_sync(input);
 }
@@ -546,6 +608,29 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 				bdata->software_debounce =
 						button->debounce_interval;
 		}
+#if defined(CONFIG_LGE_SUPPORT_HALLIC)
+		if (bdata->button->desc != NULL) {
+			if (!strncmp(bdata->button->desc, "smart_cover", 11))
+			{
+				if (hallic_register(&sdev) < 0) {
+					pr_err("[Display] smart_cover switch registration failed\n");
+				}
+				pr_info("[Display] smart_cover_dev switch registration success\n");
+			}
+		}
+		if (bdata->button->desc != NULL) {
+			if (!strncmp(bdata->button->desc, "nfc_cover", 9)) {
+				hallic_register(&ndev);
+				pr_info("[Display] hallic_dev switch registration success\n");
+			}
+		}
+                if (bdata->button->desc != NULL) {
+                        if (!strncmp(bdata->button->desc, "slide_detect", 12)) {
+                                hallic_register(&ldev);
+                                pr_info("[Display] slide_detect switch registration success\n");
+                        }
+                }
+#endif
 
 		if (button->irq) {
 			bdata->irq = button->irq;

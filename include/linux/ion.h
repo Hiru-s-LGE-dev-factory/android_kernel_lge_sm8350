@@ -47,6 +47,17 @@ struct ion_buffer {
 	void *vaddr;
 	struct sg_table *sg_table;
 	struct list_head attachments;
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	size_t highorder_size;
+#endif
+#ifdef CONFIG_ION_DEBUGGING
+	struct rb_node node;
+	struct ion_device *dev;
+	char task_comm[TASK_COMM_LEN];
+	pid_t pid;
+	char thread_comm[TASK_COMM_LEN];
+	pid_t tid;
+#endif
 };
 
 /**
@@ -142,6 +153,12 @@ struct ion_heap {
 
 	/* heap's debugfs root */
 	struct dentry *debugfs_dir;
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	size_t free_highorder_size;
+#endif
+#ifdef CONFIG_ION_DEBUGGING
+	struct ion_device *dev;
+#endif
 };
 
 #define ion_device_add_heap(heap) __ion_device_add_heap(heap, THIS_MODULE)

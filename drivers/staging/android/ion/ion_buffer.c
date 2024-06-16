@@ -15,6 +15,42 @@
 #include "ion_trace.h"
 #include "ion_private.h"
 
+
+#ifdef CONFIG_ION_DEBUGGING
+/* this function should only be called while dev->lock is held */
+static void ion_buffer_add(struct ion_device *dev,
+						struct ion_buffer *buffer)
+{
+	struct rb_node **p = &dev->buffers.rb_node;
+	struct rb_node *parent = NULL;
+	struct ion_buffer *entry;
+	struct task_struct *task;
+
+	while (*p) {
+		parent = *p;
+		entry = rb_entry(parent, struct ion_buffer, node);
+
+		if (buffer < entry) {
+			p = &(*p)->rb_left;
+		} else if (buffer > entry) {
+			p = &(*p)->rb_right;
+		} else {
+			pr_err("%s: buffer already found.", __func__);
+			BUG();
+		}
+	}
+
+	task = current;
+	get_task_comm(buffer->task_comm, task->group_leader);
+	get_task_comm(buffer->thread_comm, task);
+	buffer->pid = task_pid_nr(task->group_leader);
+	buffer->tid = task_pid_nr(task);
+
+	rb_link_node(&buffer->node, parent, p);
+	rb_insert_color(&buffer->node, &dev->buffers);
+}
+#endif
+
 static atomic_long_t total_heap_bytes;
 
 static void track_buffer_created(struct ion_buffer *buffer)
@@ -46,6 +82,9 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	buffer->heap = heap;
 	buffer->flags = flags;
+#ifdef CONFIG_ION_DEBUGGING
+	buffer->dev = dev;
+#endif
 	buffer->size = len;
 
 	ret = heap->ops->allocate(heap, buffer, len, flags);
@@ -83,6 +122,13 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	INIT_LIST_HEAD(&buffer->attachments);
 	mutex_init(&buffer->lock);
+
+#ifdef CONFIG_ION_DEBUGGING
+	mutex_lock(&dev->buffer_lock);
+	ion_buffer_add(dev, buffer);
+	mutex_unlock(&dev->buffer_lock);
+#endif
+
 	track_buffer_created(buffer);
 	return buffer;
 
@@ -242,6 +288,12 @@ int ion_buffer_destroy(struct ion_device *dev, struct ion_buffer *buffer)
 
 	heap = buffer->heap;
 	track_buffer_destroyed(buffer);
+
+#ifdef CONFIG_ION_DEBUGGING
+	mutex_lock(&dev->buffer_lock);
+	rb_erase(&buffer->node, &dev->buffers);
+	mutex_unlock(&dev->buffer_lock);
+#endif
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_freelist_add(heap, buffer);

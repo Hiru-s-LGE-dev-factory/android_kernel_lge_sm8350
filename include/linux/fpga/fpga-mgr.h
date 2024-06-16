@@ -182,6 +182,10 @@ void fpga_image_info_free(struct fpga_image_info *info);
 
 int fpga_mgr_load(struct fpga_manager *mgr, struct fpga_image_info *info);
 
+#ifdef CONFIG_MACH_LGE
+int fpga_mgr_firmware_load(struct fpga_manager *mgr, struct fpga_image_info *info, const char *image_name);
+#endif
+
 int fpga_mgr_lock(struct fpga_manager *mgr);
 void fpga_mgr_unlock(struct fpga_manager *mgr);
 

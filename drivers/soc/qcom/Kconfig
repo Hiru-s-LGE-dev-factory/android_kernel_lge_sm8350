@@ -629,6 +629,8 @@ config QMP_DEBUGFS_CLIENT
 	  into an exposed debugfs node to send to AOP. The driver expects the
 	  passed in string argument to be formatted correctly for AOP to read.
 
+source "drivers/soc/qcom/lge/Kconfig"
+
 config QSEE_IPC_IRQ_BRIDGE
 	tristate "QSEE IPC Interrupt Bridge"
 	help
@@ -1120,3 +1122,5 @@ config QCOM_RTIC
 
 source "drivers/soc/qcom/icnss2/Kconfig"
 endmenu
+
+source "drivers/soc/qcom/lge/Kconfig"

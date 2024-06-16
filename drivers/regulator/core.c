@@ -28,6 +28,9 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/module.h>
+#ifdef CONFIG_PROC_FS
+#include  <linux/proc_fs.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/regulator.h>
@@ -54,7 +57,7 @@ static LIST_HEAD(regulator_ena_gpio_list);
 static LIST_HEAD(regulator_supply_alias_list);
 static LIST_HEAD(regulator_coupler_list);
 static bool has_full_constraints;
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 static bool debug_suspend;
 #endif
 
@@ -1541,7 +1544,7 @@ static void unset_regulator_supplies(struct regulator_dev *rdev)
 	}
 }
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 static ssize_t constraint_flags_read_file(struct file *file,
 					  char __user *user_buf,
 					  size_t count, loff_t *ppos)
@@ -1583,7 +1586,7 @@ static ssize_t constraint_flags_read_file(struct file *file,
 #endif
 
 static const struct file_operations constraint_flags_fops = {
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 	.open = simple_open,
 	.read = constraint_flags_read_file,
 	.llseek = default_llseek,
@@ -5815,7 +5818,7 @@ void *regulator_get_init_drvdata(struct regulator_init_data *reg_init_data)
 }
 EXPORT_SYMBOL_GPL(regulator_get_init_drvdata);
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 static int supply_map_show(struct seq_file *sf, void *data)
 {
 	struct regulator_map *map;
@@ -6132,7 +6135,7 @@ static int __init regulator_init(void)
 	if (!debugfs_root)
 		pr_warn("regulator: Failed to create debugfs directory\n");
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 	debugfs_create_file("supply_map", 0444, debugfs_root, NULL,
 			    &supply_map_fops);
 
@@ -6142,6 +6145,10 @@ static int __init regulator_init(void)
 	debugfs_create_bool("debug_suspend", 0644, debugfs_root,
 			    &debug_suspend);
 #endif
+#ifdef CONFIG_PROC_FS
+	proc_create("regulator_summary", 0444, NULL, &regulator_summary_fops);
+#endif
+
 	regulator_dummy_init();
 
 	regulator_coupler_register(&generic_regulator_coupler);

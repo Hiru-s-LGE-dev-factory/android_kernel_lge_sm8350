@@ -11,6 +11,9 @@
 #include <linux/mutex.h>
 #include <linux/property.h>
 #include <linux/slab.h>
+#ifdef CONFIG_LGE_USB
+#include <linux/usb/pd.h>
+#endif
 
 #include "bus.h"
 
@@ -46,6 +49,13 @@ struct typec_port {
 	enum typec_role			vconn_role;
 	enum typec_pwr_opmode		pwr_opmode;
 	enum typec_port_type		port_type;
+#ifdef CONFIG_LGE_USB
+	enum typec_partner_cc_status	partner_cc1;
+	enum typec_partner_cc_status	partner_cc2;
+	u32				rdo;
+	u32				pdo[PDO_MAX_OBJECTS];
+	u32				moisture;
+#endif
 	struct mutex			port_type_lock;
 
 	enum typec_orientation		orientation;
@@ -943,6 +953,17 @@ static const char * const typec_port_types_drp[] = {
 	[TYPEC_PORT_DRP] = "[dual] source sink",
 };
 
+#ifdef CONFIG_LGE_USB
+static const char * const typec_partner_cc_status[] = {
+	[TYPEC_PARTNER_CC_OPEN]       = "Open",
+	[TYPEC_PARTNER_CC_RP_DEFAULT] = "Rp Default",
+	[TYPEC_PARTNER_CC_RP_1P5A]    = "Rp 1.5A",
+	[TYPEC_PARTNER_CC_RP_3A]      = "Rp 3A",
+	[TYPEC_PARTNER_CC_RD]         = "Rd",
+	[TYPEC_PARTNER_CC_RA]         = "Ra",
+};
+#endif
+
 static ssize_t
 preferred_role_store(struct device *dev, struct device_attribute *attr,
 		     const char *buf, size_t size)
@@ -1247,6 +1268,121 @@ static ssize_t usb_power_delivery_revision_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(usb_power_delivery_revision);
 
+#ifdef CONFIG_LGE_USB
+static ssize_t cc1_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct typec_port *p = to_typec_port(dev);
+
+	return sprintf(buf, "%s\n", typec_partner_cc_status[p->partner_cc1]);
+}
+static DEVICE_ATTR_RO(cc1);
+
+static ssize_t cc2_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct typec_port *p = to_typec_port(dev);
+
+	return sprintf(buf, "%s\n", typec_partner_cc_status[p->partner_cc2]);
+}
+static DEVICE_ATTR_RO(cc2);
+
+static ssize_t pdo_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct typec_port *p = to_typec_port(dev);
+	ssize_t result;
+	unsigned int idx;
+	u32 pdo;
+
+	result = sscanf(attr->attr.name, "pdo%u", &idx);
+	if (result != 1)
+		return -EINVAL;
+
+	if ((idx == 0) || (idx > PDO_MAX_OBJECTS))
+		return -EINVAL;
+
+	pdo = p->pdo[idx - 1];
+	if (!pdo)
+		return 0;
+
+	switch (pdo_type(pdo)) {
+	case PDO_TYPE_FIXED:
+		return snprintf(buf, PAGE_SIZE, "[F] %umV, %umA\n",
+				pdo_fixed_voltage(pdo), pdo_max_current(pdo));
+	case PDO_TYPE_BATT:
+		return snprintf(buf, PAGE_SIZE, "[B] Max %umV, Min %umV, %umW\n",
+				pdo_max_voltage(pdo), pdo_min_voltage(pdo),
+				pdo_max_power(pdo));
+	case PDO_TYPE_VAR:
+		return snprintf(buf, PAGE_SIZE, "[V] Max %umV, Min %umV, %umA\n",
+				pdo_max_voltage(pdo), pdo_min_voltage(pdo),
+				pdo_max_current(pdo));
+	case PDO_TYPE_APDO:
+		return snprintf(buf, PAGE_SIZE, "[A] Max %umV, Min %umV, %umA\n",
+				pdo_pps_apdo_max_voltage(pdo),
+				pdo_pps_apdo_min_voltage(pdo),
+				pdo_pps_apdo_max_current(pdo));
+	default:
+		break;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%08X\n", pdo);
+}
+static DEVICE_ATTR(pdo1, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo2, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo3, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo4, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo5, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo6, 0444, pdo_show, NULL);
+static DEVICE_ATTR(pdo7, 0444, pdo_show, NULL);
+
+static ssize_t rdo_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct typec_port *p = to_typec_port(dev);
+	unsigned int idx;
+
+	if (!p->rdo)
+		return 0;
+
+	idx = rdo_index(p->rdo);
+	if ((idx == 0) || (idx > PDO_MAX_OBJECTS) || !p->pdo[idx - 1])
+		return 0;
+
+	switch (pdo_type(p->pdo[idx - 1])) {
+	case PDO_TYPE_FIXED:
+		return snprintf(buf, PAGE_SIZE, "[%u:F] %umA\n", idx,
+				rdo_op_current(p->rdo));
+	case PDO_TYPE_BATT:
+		return snprintf(buf, PAGE_SIZE, "[%u:B] %umW\n", idx,
+				rdo_op_power(p->rdo));
+	case PDO_TYPE_VAR:
+		return snprintf(buf, PAGE_SIZE, "[%u:V] %umA\n", idx,
+				rdo_op_current(p->rdo));
+	case PDO_TYPE_APDO:
+		return snprintf(buf, PAGE_SIZE, "[%u:A] %umV, %umA\n", idx,
+				((p->rdo >> RDO_PROG_VOLT_SHIFT) &
+				 RDO_PROG_VOLT_MASK) * RDO_PROG_VOLT_MV_STEP,
+				((p->rdo >> RDO_PROG_CURR_SHIFT) &
+				 RDO_PROG_CURR_MASK) * RDO_PROG_CURR_MA_STEP);
+	default:
+		break;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "[%u] %08x\n", idx, p->rdo);
+}
+static DEVICE_ATTR_RO(rdo);
+
+static ssize_t moisture_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct typec_port *p = to_typec_port(dev);
+	return sprintf(buf, "%d\n", p->moisture);
+}
+static DEVICE_ATTR_RO(moisture);
+#endif
+
 static struct attribute *typec_attrs[] = {
 	&dev_attr_data_role.attr,
 	&dev_attr_power_operation_mode.attr,
@@ -1257,6 +1393,19 @@ static struct attribute *typec_attrs[] = {
 	&dev_attr_usb_typec_revision.attr,
 	&dev_attr_vconn_source.attr,
 	&dev_attr_port_type.attr,
+#ifdef CONFIG_LGE_USB
+	&dev_attr_cc1.attr,
+	&dev_attr_cc2.attr,
+	&dev_attr_pdo1.attr,
+	&dev_attr_pdo2.attr,
+	&dev_attr_pdo3.attr,
+	&dev_attr_pdo4.attr,
+	&dev_attr_pdo5.attr,
+	&dev_attr_pdo6.attr,
+	&dev_attr_pdo7.attr,
+	&dev_attr_rdo.attr,
+	&dev_attr_moisture.attr,
+#endif
 	NULL,
 };
 ATTRIBUTE_GROUPS(typec);
@@ -1301,6 +1450,7 @@ const struct device_type typec_port_dev_type = {
  *
  * This routine is used by the port drivers to report data role changes.
  */
+
 void typec_set_data_role(struct typec_port *port, enum typec_data_role role)
 {
 	if (port->data_role == role)
@@ -1435,6 +1585,33 @@ int typec_find_port_data_role(const char *name)
 }
 EXPORT_SYMBOL_GPL(typec_find_port_data_role);
 
+#ifdef CONFIG_LGE_USB
+int typec_find_port_accessory(const char *name)
+{
+	struct device *port_dev;
+	struct device *partner_dev;
+	int accessory;
+
+	port_dev = class_find_device_by_name(typec_class, name);
+	if (!port_dev)
+		return -EPROBE_DEFER;
+
+	partner_dev = device_find_child(port_dev, NULL, partner_match);
+	if (!partner_dev) {
+		put_device(port_dev);
+		return -EPROBE_DEFER;
+	}
+
+	accessory = to_typec_partner(partner_dev)->accessory;
+
+	put_device(partner_dev);
+	put_device(port_dev);
+
+	return accessory;
+}
+EXPORT_SYMBOL_GPL(typec_find_port_accessory);
+#endif
+
 /* ------------------------------------------ */
 /* API for Multiplexer/DeMultiplexer Switches */
 
@@ -1487,6 +1664,73 @@ int typec_set_mode(struct typec_port *port, int mode)
 	return port->mux ? port->mux->set(port->mux, mode) : 0;
 }
 EXPORT_SYMBOL_GPL(typec_set_mode);
+
+#ifdef CONFIG_LGE_USB
+void typec_set_partner_cc_status(struct typec_port *port,
+				 enum typec_partner_cc_status cc1,
+				 enum typec_partner_cc_status cc2)
+{
+	if ((port->partner_cc1 == cc1) && (port->partner_cc2 == cc2))
+		return;
+
+	if (port->partner_cc1 != cc1) {
+		port->partner_cc1 = cc1;
+		sysfs_notify(&port->dev.kobj, NULL, "cc1");
+	}
+
+	if (port->partner_cc2 != cc2) {
+		port->partner_cc2 = cc2;
+		sysfs_notify(&port->dev.kobj, NULL, "cc2");
+	}
+
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+}
+EXPORT_SYMBOL_GPL(typec_set_partner_cc_status);
+
+void typec_set_rdo(struct typec_port *port, u32 rdo)
+{
+	if (port->rdo == rdo)
+		return;
+
+	port->rdo = rdo;
+
+	sysfs_notify(&port->dev.kobj, NULL, "rdo");
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+}
+EXPORT_SYMBOL_GPL(typec_set_rdo);
+
+void typec_set_pdos(struct typec_port *port, u32 pdo[])
+{
+	char attr[5];
+	int i;
+
+	if (!memcmp(port->pdo, pdo, sizeof(port->pdo)))
+		return;
+
+	for (i = 0; i < PDO_MAX_OBJECTS; i++) {
+		if (port->pdo[i] != pdo[i]) {
+			snprintf(attr, 5, "pdo%d", i + 1);
+			port->pdo[i] = pdo[i];
+			sysfs_notify(&port->dev.kobj, NULL, attr);
+		}
+	}
+
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+}
+EXPORT_SYMBOL_GPL(typec_set_pdos);
+
+void typec_set_moisture(struct typec_port *port, u32 moisture)
+{
+	if (port->moisture == moisture)
+		return;
+
+	port->moisture = moisture;
+
+	sysfs_notify(&port->dev.kobj, NULL, "moisture");
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+}
+EXPORT_SYMBOL_GPL(typec_set_moisture);
+#endif
 
 /* --------------------------------------- */
 

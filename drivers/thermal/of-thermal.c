@@ -21,6 +21,10 @@
 
 #include "thermal_core.h"
 
+#ifdef CONFIG_LGE_ONE_BINARY_SKU
+#include <soc/qcom/lge/board_lge.h>
+#endif
+
 /***   Private data structures to represent thermal device tree data ***/
 
 /**
@@ -1814,6 +1818,11 @@ int __init of_parse_thermal_zones(void)
 	struct __thermal_zone *tz;
 	struct thermal_zone_device_ops *ops;
 
+#ifdef CONFIG_LGE_ONE_BINARY_SKU
+	enum lge_sku_carrier_type sku_carrier = HW_SKU_MAX;
+	sku_carrier = lge_get_sku_carrier();
+#endif
+
 	np = of_find_node_by_name(NULL, "thermal-zones");
 	if (!np) {
 		pr_debug("unable to find thermal zones\n");
@@ -1829,6 +1838,15 @@ int __init of_parse_thermal_zones(void)
 		const char *governor_name;
 #endif
 
+#ifdef CONFIG_LGE_ONE_BINARY_SKU
+		if (!strncmp(child->name, "qtm-", strlen("qtm-"))
+			|| !strncmp(child->name, "sdr-", strlen("sdr-"))) {
+			if (sku_carrier != HW_SKU_NA_CDMA_VZW) {
+				pr_info("skip %s thermal zone register\n", child->name);
+				continue;
+			}
+		}
+#endif
 		tz = thermal_of_build_thermal_zone(child);
 		if (IS_ERR(tz)) {
 			pr_err("failed to build thermal zone %pKOFn: %ld\n",

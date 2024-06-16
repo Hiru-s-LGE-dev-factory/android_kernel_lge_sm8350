@@ -87,4 +87,10 @@ obj-$(CONFIG_INPUT_WM831X_ON)		+= wm831x-on.o
 obj-$(CONFIG_INPUT_XEN_KBDDEV_FRONTEND)	+= xen-kbdfront.o
 obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
 obj-$(CONFIG_INPUT_IDEAPAD_SLIDEBAR)	+= ideapad_slidebar.o
-
+obj-$(CONFIG_LGE_USE_BUTTONLESS_USSYS)		+= us-touch-point.o
+obj-$(CONFIG_LGE_USE_BUTTONLESS_USSYS_HUB)	+= touch_point_hub.o
+obj-$(CONFIG_SENSORS_TCS3407) 		+= tcs3407/
+obj-$(CONFIG_SAR_ALMF04QFN_2_3CH_NIT)   += almf04_c2_c3_12qfn_nit.o
+obj-$(CONFIG_INPUT_LGE_HALL_SENSOR)			+= lge_hall_sensor_notifier.o
+obj-$(CONFIG_INPUT_HALL_SENSOR_AK09970)			+= akm09970.o
+obj-$(CONFIG_INPUT_HALL_SENSOR_AK09973)			+= akm09973.o

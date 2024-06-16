@@ -178,5 +178,8 @@ int spmi_command_reset(struct spmi_device *sdev);
 int spmi_command_sleep(struct spmi_device *sdev);
 int spmi_command_wakeup(struct spmi_device *sdev);
 int spmi_command_shutdown(struct spmi_device *sdev);
+#ifdef CONFIG_LGE_PM
+int spmi_glink_get_regdump(u32 bus_id, u8 sid, u16 addr, u8 *buf);
+#endif
 
 #endif

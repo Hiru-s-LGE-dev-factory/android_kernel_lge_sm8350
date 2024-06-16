@@ -17,6 +17,15 @@ obj-y :=	open.o read_write.o file_table.o super.o \
 		stack.o fs_struct.o statfs.o fs_pin.o nsfs.o \
 		fs_types.o fs_context.o fs_parser.o fsopen.o
 
+# LGE_CHANGE_S
+#
+# do read/mmap profiling during booting
+# in order to use the data as readahead args
+#
+# byungchul.park@lge.com 20120503
+obj-$(CONFIG_LGE_SREADAHEAD) += sreadahead_prof.o
+# LGE_CHANGE_E
+
 ifeq ($(CONFIG_BLOCK),y)
 obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
 else

@@ -1,0 +1,45 @@
+#
+# Nxp Nci protocol (I2C) devices
+#
+
+#config NFC_PN553_DEVICES
+#	tristate "NXP NCI based NFC I2C Slave Driver for SNxxx"
+#	depends on I2C
+#	---help---
+#	  You'll have to say Y if your computer contains an I2C device that
+#	  you want to use under Linux.
+#
+#	  You can say N here if you don't have any SPI connected to your computer.
+
+### LGE_START ###
+
+config LGE_NFC
+	bool "NFC Device Enabled for LGE"
+	default n
+
+config LGE_NFC_SN100X
+	tristate "SN100 NFC driver"
+	depends on I2C
+	default n
+	---help---
+	  Say yes if you want PN553 Near Field Communication driver.
+	  This is for i2c connected version. If unsure, say N here.
+
+	  To compile this driver as a module, choose m here. The module will
+	  be called pn553.
+
+config LGE_NFC_SET_IRQ_WAKEUP
+	bool "NFC Set IRQ wakeup when NFC ON"
+	default n
+	---help---
+	  Say yes if Set IRQ Wakeup NFC ON.
+	  If unsure, say N here.
+
+config LGE_NFC_DEBUG_MESSAGE
+	bool "NFC Debug Message"
+	default n
+
+config LGE_NFC_GKI
+	bool "NFC GKI"
+	default n
+### LGE_END ###

@@ -69,6 +69,17 @@ enum typec_orientation {
 	TYPEC_ORIENTATION_REVERSE,
 };
 
+#ifdef CONFIG_LGE_USB
+enum typec_partner_cc_status {
+	TYPEC_PARTNER_CC_OPEN,
+	TYPEC_PARTNER_CC_RP_DEFAULT,
+	TYPEC_PARTNER_CC_RP_1P5A,
+	TYPEC_PARTNER_CC_RP_3A,
+	TYPEC_PARTNER_CC_RD,
+	TYPEC_PARTNER_CC_RA,
+};
+#endif
+
 /*
  * struct usb_pd_identity - USB Power Delivery identity data
  * @id_header: ID Header VDO
@@ -246,9 +257,22 @@ int typec_set_orientation(struct typec_port *port,
 enum typec_orientation typec_get_orientation(struct typec_port *port);
 int typec_set_mode(struct typec_port *port, int mode);
 
+#ifdef CONFIG_LGE_USB
+void typec_set_partner_cc_status(struct typec_port *port,
+				 enum typec_partner_cc_status cc1,
+				 enum typec_partner_cc_status cc2);
+void typec_set_rdo(struct typec_port *port, u32 rdo);
+void typec_set_pdos(struct typec_port *port, u32 pdo[]);
+void typec_set_moisture(struct typec_port *port, u32 moisture);
+#endif
+
 void *typec_get_drvdata(struct typec_port *port);
 
 int typec_find_port_power_role(const char *name);
 int typec_find_power_role(const char *name);
 int typec_find_port_data_role(const char *name);
+#ifdef CONFIG_LGE_USB
+int typec_find_port_accessory(const char *name);
+#endif
+
 #endif /* __LINUX_USB_TYPEC_H */

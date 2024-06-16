@@ -134,6 +134,10 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 	trace_dcvsh_freq(cpumask_first(&c->related_cpus), freq);
 	c->dcvsh_freq_limit = freq;
 
+#ifdef CONFIG_LGE_PM_DEBUG
+	pr_info_ratelimited("%s: CPU:%d dcvsh_freq_limit:%lu\n",
+			    __func__, cpumask_first(&c->related_cpus), freq);
+#endif
 	return freq;
 }
 

@@ -445,9 +445,15 @@ static irqreturn_t bcl_handle_irq(int irq, void *data)
 	bcl_read_register(bcl_perph, BCL_IRQ_STATUS, &irq_status);
 
 	if (irq_status & perph_data->status_bit_idx) {
+#ifdef CONFIG_LGE_PM_DEBUG
+        pr_info_ratelimited("Irq:%d triggered for bcl type:%s. status:%u\n",
+                             irq, bcl_int_names[perph_data->type],
+                             irq_status);
+#else
 		pr_debug("Irq:%d triggered for bcl type:%s. status:%u\n",
 			irq, bcl_int_names[perph_data->type],
 			irq_status);
+#endif
 		of_thermal_handle_trip_temp(perph_data->dev->dev,
 				perph_data->tz_dev,
 				perph_data->status_bit_idx);

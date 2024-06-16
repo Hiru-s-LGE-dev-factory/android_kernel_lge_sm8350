@@ -32,6 +32,9 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 #include <linux/irq.h>
+#ifdef CONFIG_LGE_USB
+#include <linux/usb/dwc3-msm.h>
+#endif
 
 #include "core.h"
 #include "gadget.h"
@@ -301,6 +304,11 @@ done:
 	 * is cleared, we must wait at least 50ms before accessing the PHY
 	 * domain (synchronization delay).
 	 */
+#ifdef CONFIG_LGE_USB
+	if (!(dwc->usb_compliance_mode &&
+	      *dwc->usb_compliance_mode &&
+	      (dwc->usb2_phy->flags & PHY_HOST_MODE)))
+#endif
 	if (dwc3_is_usb31(dwc) && dwc->revision <= DWC3_USB31_REVISION_180A)
 		msleep(50);
 
@@ -1395,10 +1403,12 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,dis_u2_susphy_quirk");
 	dwc->dis_enblslpm_quirk = device_property_read_bool(dev,
 				"snps,dis_enblslpm_quirk");
+#ifndef CONFIG_LGE_USB
 	dwc->dis_u1_entry_quirk = device_property_read_bool(dev,
 				"snps,dis-u1-entry-quirk");
 	dwc->dis_u2_entry_quirk = device_property_read_bool(dev,
 				"snps,dis-u2-entry-quirk");
+#endif
 	dwc->dis_rxdet_inp3_quirk = device_property_read_bool(dev,
 				"snps,dis_rxdet_inp3_quirk");
 	dwc->dis_u2_freeclk_exists_quirk = device_property_read_bool(dev,
@@ -1997,12 +2007,13 @@ static int dwc3_resume(struct device *dev)
 	/* Check if platform glue driver handling PM, if not then handle here */
 	if (!dwc3_notify_event(dwc, DWC3_CORE_PM_RESUME_EVENT, 0)) {
 		/*
-		 * If the core was in host mode during suspend, then set the
-		 * runtime PM state as active to reflect actual state of device
-		 * which is now out of LPM. This allows runtime_suspend later.
+		 * If the core was in host mode during suspend, then perform
+		 * runtime resume which will do resume and set the runtime PM
+		 * state as active to reflect actual state of device which
+		 * is now out of LPM. This allows runtime_suspend later.
 		 */
 		if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST)
-			goto runtime_set_active;
+			pm_runtime_resume(dev);
 
 		return 0;
 	}
@@ -2012,11 +2023,6 @@ static int dwc3_resume(struct device *dev)
 	ret = dwc3_resume_common(dwc, PMSG_RESUME);
 	if (ret)
 		return ret;
-
-runtime_set_active:
-	pm_runtime_disable(dev);
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
 
 	return 0;
 }

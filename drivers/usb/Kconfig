@@ -177,3 +177,4 @@ source "drivers/usb/roles/Kconfig"
 source "drivers/usb/pd/Kconfig"
 
 endif # USB_SUPPORT
+source "drivers/usb/Kconfig.lge"

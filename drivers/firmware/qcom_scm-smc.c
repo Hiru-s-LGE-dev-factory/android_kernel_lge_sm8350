@@ -28,6 +28,9 @@
 #define QCOM_SCM_ATOMIC		BIT(0)
 #define QCOM_SCM_NORETRY	BIT(1)
 
+#define SCM_SVC_MOBICORE		250
+#define SCM_CMD_MOBICORE		1
+
 enum qcom_scm_arg_types {
 	QCOM_SCM_VAL,
 	QCOM_SCM_RO,
@@ -2116,6 +2119,54 @@ int  __init scm_mem_protection_init_do(struct device *dev)
 	}
 	return resp;
 }
+#endif
+
+#ifdef CONFIG_TRUSTONIC_TEE
+int trustonic_smc_fastcall(void *fc_generic, size_t size)
+{ 
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = SCM_SVC_MOBICORE,
+		.cmd = SCM_CMD_MOBICORE,
+		.owner = ARM_SMCCC_OWNER_MOBI_OS
+	}; 
+
+    static void *scm_buf;
+    static phys_addr_t scm_buf_pa;
+
+    if (!scm_buf) {
+        if (qtee_shmbridge_is_enabled()) {
+            static struct qtee_shm scm_shm = {0};
+
+            ret = qtee_shmbridge_allocate_shm(PAGE_ALIGN(size),
+                    &scm_shm);
+            scm_buf = scm_shm.vaddr;
+            scm_buf_pa = scm_shm.paddr;
+        }
+        else {
+            scm_buf = kzalloc(PAGE_ALIGN(size), GFP_KERNEL);
+            scm_buf_pa = virt_to_phys(scm_buf);
+        }
+    }
+    if (!scm_buf)
+        return -ENOMEM;
+    memcpy(scm_buf, fc_generic, size);
+    __dma_flush_area(scm_buf, size);
+
+    desc.args[0] = scm_buf_pa;
+    desc.args[1] = (u32)size;
+    desc.args[2] = scm_buf_pa;
+    desc.args[3] = (u32)size; 
+    desc.arginfo = QCOM_SCM_ARGS(4, QCOM_SCM_RW, QCOM_SCM_VAL, QCOM_SCM_RW, QCOM_SCM_VAL);
+
+    ret = qcom_scm_call(NULL, &desc);
+
+    __dma_flush_area(scm_buf, size);
+
+    memcpy(fc_generic, scm_buf, size);
+    return ret;
+}
+EXPORT_SYMBOL(trustonic_smc_fastcall);
 #endif
 
 void __qcom_scm_init(void)

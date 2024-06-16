@@ -32,6 +32,10 @@ void hook_debug_fault_code(int nr, int (*fn)(unsigned long, unsigned int,
 struct mm_struct;
 extern void __show_regs(struct pt_regs *);
 
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+extern void (*arm_pm_restart_timeout)(enum reboot_mode reboot_mode, const char *cmd);
+#endif
+
 #endif	/* __ASSEMBLY__ */
 
 #endif	/* __ASM_SYSTEM_MISC_H */

@@ -1390,6 +1390,9 @@ struct dwc3 {
 	 */
 	bool			host_poweroff_in_pm_suspend;
 	int			retries_on_error;
+#ifdef CONFIG_LGE_USB
+	bool			*usb_compliance_mode;
+#endif
 	u32			gen2_tx_de_emph;
 	u32			gen2_tx_de_emph1;
 	u32			gen2_tx_de_emph2;
@@ -1694,6 +1697,7 @@ enum dwc3_notify_event {
 	DWC3_CONTROLLER_NOTIFY_OTG_EVENT,
 	DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT,
 	DWC3_CONTROLLER_NOTIFY_DISABLE_UPDXFER,
+	DWC3_CONTROLLER_PULLUP,
 
 	/* USB GSI event buffer related notification */
 	DWC3_GSI_EVT_BUF_ALLOC,

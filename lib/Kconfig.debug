@@ -18,6 +18,31 @@ config PRINTK_TIME
 	  The behavior is also controlled by the kernel command line
 	  parameter printk.time=1. See Documentation/admin-guide/kernel-parameters.rst
 
+config PRINTK_TIMESPEC
+	bool "Show timespec information on printks"
+	depends on PRINTK
+	help
+	  Enable timespec information except year by using time_to_tm
+
+config PRINTK_PROCESS
+	bool "Show process information on printks"
+	depends on PRINTK
+	help
+	  Enable process name, PID, core number and
+	  context information in kernel log to be printed.
+
+config PRINTK_EXTRA_LOGBUF_SHIFT
+	int "PRINTK_PROCESS log buffer size contribution (20 => 1 MB)"
+	range 0 21
+	default 0
+	depends on PRINTK_PROCESS
+	help
+	  This option allows to increase the ring buffer size per CPUs
+	  by adding PRINTK_PROCESS not to truncate initial log.
+	  Examples shift values and their meaning:
+	  20 => add extra   1 MB to the ring buffer
+	  17 => add extra 128 KB to the ring buffer
+
 config PRINTK_CALLER
 	bool "Show caller information on printks"
 	depends on PRINTK
@@ -1110,6 +1135,13 @@ config LOCK_DEBUGGING_SUPPORT
 	bool
 	depends on TRACE_IRQFLAGS_SUPPORT && STACKTRACE_SUPPORT && LOCKDEP_SUPPORT
 	default y
+
+config DEBUG_LOCKS_ON_BUG
+	bool "Cause a Kernel Bug on lock warn"
+	depends on DEBUG_KERNEL
+	help
+         On a lock debugging, cause a kernel bug so that we can get the precise
+         state of the system captured at the time of lock dump.
 
 choice
 	prompt "Perform Action on spinlock bug"

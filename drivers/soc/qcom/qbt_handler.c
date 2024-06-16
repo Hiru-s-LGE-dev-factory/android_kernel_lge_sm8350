@@ -29,6 +29,7 @@
 #include <linux/poll.h>
 #include <linux/input.h>
 #include <uapi/linux/qbt_handler.h>
+#include <linux/regulator/consumer.h>    // LGE_RAINBOW
 
 #define QBT_DEV "qbt"
 #define MAX_FW_EVENTS 128
@@ -95,7 +96,9 @@ struct qbt_drvdata {
 	struct class	*qbt_class;
 	struct cdev	qbt_fd_cdev;
 	struct cdev	qbt_ipc_cdev;
+#ifndef CONFIG_MACH_LAHAINA_RAINBOWLM
 	struct input_dev	*in_dev;
+#endif
 	struct device	*dev;
 	char		*qbt_node;
 	atomic_t	fd_available;
@@ -114,6 +117,61 @@ struct qbt_drvdata {
 	struct fd_userspace_buf scrath_buf;
 	atomic_t wakelock_acquired;
 };
+
+#if 1    // LGE_RAINBOW
+static void vreg_setup(struct qbt_drvdata *drvdata, const char *name, bool enable)
+{
+    int rc;
+    struct regulator *vreg = NULL;
+    struct device *dev = drvdata->dev;
+
+    pr_debug("%s\n", __func__);
+
+    vreg = regulator_get(dev, name);
+    if (IS_ERR(vreg)) {
+        pr_err("Unable to get %s\n", name);
+        return;
+    }
+
+    if (enable) {
+        if (regulator_count_voltages(vreg) > 0) {
+#if 0
+            rc = regulator_set_voltage(vreg, 3300000, 3300000);
+#else
+            rc = regulator_set_voltage(vreg, 1800000, 1800000);  // fail
+#endif
+            if (rc) {
+                pr_err("Unable to set voltage on %s, %d\n", name, rc);
+            }
+        } else {
+            pr_err("regulator_count_voltages failed");
+        }
+
+        rc = regulator_set_load(vreg, 10);
+        if (rc < 0)
+            pr_err("Unable to set current on %s, %d\n", name, rc);
+
+        rc = regulator_enable(vreg);
+        if (rc) {
+            pr_err("error enabling %s: %d\n", name, rc);
+            regulator_put(vreg);
+            vreg = NULL;
+        } else {
+            pr_debug("power on");
+        }
+    } else {
+        if (regulator_is_enabled(vreg)) {
+            regulator_disable(vreg);
+            pr_debug("power off");
+        } else {
+            pr_debug("regulator is already disabled");
+        }
+
+        regulator_put(vreg);
+        vreg = NULL;
+    }
+}
+#endif
 
 static void qbt_fd_report_event(struct qbt_drvdata *drvdata,
 		struct fd_event *event)
@@ -527,6 +585,7 @@ static long qbt_ioctl(
 
 		break;
 	}
+#ifndef CONFIG_MACH_LAHAINA_RAINBOWLM
 	case QBT_SEND_KEY_EVENT:
 	{
 		struct qbt_key_event key_event;
@@ -544,6 +603,7 @@ static long qbt_ioctl(
 		input_sync(drvdata->in_dev);
 		break;
 	}
+#endif
 	case QBT_CONFIGURE_TOUCH_FD:
 	{
 		pr_debug("unsupported version\n");
@@ -874,6 +934,7 @@ err_alloc:
 	return ret;
 }
 
+#ifndef CONFIG_MACH_LAHAINA_RAINBOWLM
 /**
  * qbt_create_input_device() - Function allocates an input
  * device, configures it for key events and registers it
@@ -932,6 +993,7 @@ end:
 		input_free_device(drvdata->in_dev);
 	return rc;
 }
+#endif
 
 static void qbt_gpio_report_event(struct qbt_drvdata *drvdata, int state)
 {
@@ -1234,9 +1296,11 @@ static int qbt_probe(struct platform_device *pdev)
 	rc = qbt_dev_register(drvdata);
 	if (rc < 0)
 		goto end;
+#ifndef CONFIG_MACH_LAHAINA_RAINBOWLM
 	rc = qbt_create_input_device(drvdata);
 	if (rc < 0)
 		goto end;
+#endif
 	INIT_KFIFO(drvdata->fd_events);
 	INIT_KFIFO(drvdata->ipc_events);
 	init_waitqueue_head(&drvdata->read_wait_queue_fd);
@@ -1267,6 +1331,14 @@ static int qbt_probe(struct platform_device *pdev)
 	rc = input_register_handler(&qbt_touch_handler);
 	if (rc < 0)
 		pr_err("Failed to register input handler: %d\n", rc);
+
+#if 1    // LGE_RAINBOW
+    /* [QCOM]
+       1.8V can be always on, you don't need to disable it.
+       if you still want add a disable, you can add it in qbt_remove().
+    */
+    vreg_setup(drvdata, "vcc_spi", true);
+#endif
 
 end:
 	pr_debug("exit : %d\n", rc);

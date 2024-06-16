@@ -1520,4 +1520,7 @@ endif # SCSI_LOWLEVEL
 
 source "drivers/scsi/device_handler/Kconfig"
 
+# LGE_S
+source "drivers/scsi/Kconfig.lfs"
+
 endmenu

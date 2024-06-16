@@ -446,4 +446,6 @@ config SPRD_THERMAL
 	help
 	  Support for the Spreadtrum thermal sensor driver in the Linux thermal
 	  framework.
+
+source "drivers/thermal/lge/Kconfig"
 endif

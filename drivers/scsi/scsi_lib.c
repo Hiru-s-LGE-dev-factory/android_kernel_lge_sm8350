@@ -265,8 +265,18 @@ int __scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
 	if (bufflen &&	blk_rq_map_kern(sdev->request_queue, req,
 					buffer, bufflen, GFP_NOIO))
 		goto out;
-
+#ifdef CONFIG_LFS_UFS_SYSFS_COMMON
+	if(cmd[0] == 0xC0 && cmd[1] == 0x40 && cmd[4] == 0x01 && cmd[5] == 0x0A)
+	{
+		rq->cmd_len = 16;
+		printk(KERN_ERR "SS UFS health report read \n");
+	}else
+	{
+		rq->cmd_len = COMMAND_SIZE(cmd[0]);
+	}
+#else
 	rq->cmd_len = COMMAND_SIZE(cmd[0]);
+#endif
 	memcpy(rq->cmd, cmd, rq->cmd_len);
 	rq->retries = retries;
 	req->timeout = timeout;

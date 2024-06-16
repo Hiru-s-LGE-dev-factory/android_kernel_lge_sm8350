@@ -144,6 +144,11 @@ struct page *ion_msm_page_pool_alloc(struct ion_msm_page_pool *pool,
 		mutex_unlock(&pool->mutex);
 	}
 	if (!page) {
+#ifdef CONFIG_MIGRATE_HIGHORDER
+		if (pool->order > 0 &&
+						(global_zone_page_state(NR_FREE_HIGHORDER_PAGES) < (1 << pool->order)))
+			return ERR_PTR(-ENOMEM);
+#endif
 		page = ion_msm_page_pool_alloc_pages(pool);
 		*from_pool = false;
 	}

@@ -14,6 +14,7 @@
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -25,6 +26,10 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include <soc/qcom/lge/lge_handle_panic.h>
+#endif
 
 #define PMIC_VER_8941				0x01
 #define PMIC_VERSION_REG			0x0105
@@ -60,6 +65,7 @@ enum qpnp_pon_version {
 #define QPNP_PON_RT_STS(pon)			((pon)->base + 0x10)
 #define QPNP_PON_PULL_CTL(pon)			((pon)->base + 0x70)
 #define QPNP_PON_DBC_CTL(pon)			((pon)->base + 0x71)
+#define QPNP_PON_PBS_DBC_CTL(pon)		((pon)->pbs_base + 0x71)
 
 /* PON/RESET sources register addresses */
 #define QPNP_PON_REASON1(pon) \
@@ -207,6 +213,7 @@ struct qpnp_pon {
 	struct delayed_work	bark_work;
 	struct dentry		*debugfs;
 	u16			base;
+	u16			pbs_base;
 	u8			subtype;
 	u8			pon_ver;
 	u8			warm_reset_reason1;
@@ -304,6 +311,27 @@ static const char * const qpnp_poff_reason[] = {
 	[38] = "Triggered from S3_RESET_PBS_NACK",
 	[39] = "Triggered from S3_RESET_KPDPWR_ANDOR_RESIN",
 };
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+static const char * const pon_ps_hold_reset_ctl[] = {
+	[0] = "RESERVED0",
+	[1] = "WARM_RESET",
+	[2] = "IMMEDIATE_XVDD_SHUTDOWN",
+	[3] = "RESERVED3",
+	[4] = "SHUTDOWN",
+	[5] = "DVDD_SHUTDOWN",
+	[6] = "XVDD_SHUTDOWN",
+	[7] = "HARD_RESET",
+	[8] = "DVDD_HARD_RESET",
+	[9] = "XVDD_HARD_RESET",
+	[10] = "WARM_RESET_AND_DVDD_SHUTDOWN",
+	[11] = "WARM_RESET_AND_XVDD_SHUTDOWN",
+	[12] = "WARM_RESET_AND_SHUTDOWN",
+	[13] = "WARM_RESET_THEN_HARD_RESET",
+	[14] = "WARM_RESET_THEN_DVDD_HARD_RESET",
+	[15] = "WARM_RESET_THEN_XVDD_HARD_RESET",
+};
+#endif
 
 static int
 qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
@@ -449,9 +477,14 @@ static int qpnp_pon_get_dbc(struct qpnp_pon *pon, u32 *delay)
 	int rc;
 	unsigned int val;
 
-	rc = qpnp_pon_read(pon, QPNP_PON_DBC_CTL(pon), &val);
+	if (is_pon_gen3(pon) && pon->pbs_base)
+		rc = qpnp_pon_read(pon, QPNP_PON_PBS_DBC_CTL(pon), &val);
+	else
+		rc = qpnp_pon_read(pon, QPNP_PON_DBC_CTL(pon), &val);
+
 	if (rc)
 		return rc;
+
 	val &= QPNP_PON_DBC_DELAY_MASK(pon);
 
 	if (is_pon_gen2(pon) || is_pon_gen3(pon))
@@ -558,7 +591,12 @@ static int qpnp_pon_reset_config(struct qpnp_pon *pon,
 	if (rc)
 		return rc;
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	dev_info(pon->dev, "ps_hold power off type = 0x%02X, %s\n",
+			    type, pon_ps_hold_reset_ctl[type]);
+#else
 	dev_dbg(pon->dev, "ps_hold power off type = 0x%02X\n", type);
+#endif
 
 	return 0;
 }
@@ -962,7 +1000,7 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		return -EINVAL;
 	}
 
-	pr_debug("PMIC input: code=%d, status=0x%02X\n", cfg->key_code,
+	pr_err("PMIC input: code=%d, status=0x%02X\n", cfg->key_code,
 		pon_rt_sts);
 	key_status = pon_rt_sts & pon_rt_bit;
 
@@ -971,6 +1009,9 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 			pon->kpdpwr_last_release_time = ktime_get();
 	}
 
+#ifdef CONFIG_LGE_PM
+	pr_err("%s: code(%d), value(%d)\n", __func__, cfg->key_code, key_status);
+#endif
 	/*
 	 * Simulate a press event in case release event occurred without a press
 	 * event
@@ -982,6 +1023,10 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 
 	input_report_key(pon->pon_input, cfg->key_code, key_status);
 	input_sync(pon->pon_input);
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	lge_gen_key_panic(cfg->key_code, key_status);
+#endif
 
 	cfg->old_state = !!key_status;
 
@@ -2271,7 +2316,8 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 	struct device_node *node;
 	struct qpnp_pon *pon;
 	unsigned long flags;
-	u32 base, delay;
+	u32 delay;
+	const __be32 *addr;
 	bool sys_reset, modem_reset;
 	int rc;
 
@@ -2286,12 +2332,16 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	rc = of_property_read_u32(dev->of_node, "reg", &base);
-	if (rc < 0) {
-		dev_err(dev, "reg property missing, rc=%d\n", rc);
-		return rc;
+	addr = of_get_address(dev->of_node, 0, NULL, NULL);
+	if (!addr) {
+		dev_err(dev, "reg property missing\n");
+		return -EINVAL;
 	}
-	pon->base = base;
+	pon->base = be32_to_cpu(*addr);
+
+	addr = of_get_address(dev->of_node, 1, NULL, NULL);
+	if (addr)
+		pon->pbs_base = be32_to_cpu(*addr);
 
 	sys_reset = of_property_read_bool(dev->of_node, "qcom,system-reset");
 	if (sys_reset && sys_reset_dev) {

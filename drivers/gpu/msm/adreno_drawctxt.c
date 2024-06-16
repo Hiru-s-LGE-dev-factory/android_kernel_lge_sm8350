@@ -539,7 +539,7 @@ void adreno_drawctxt_detach(struct kgsl_context *context)
 		gpumem_free_entry(context->user_ctxt_record);
 
 		/* Put the extra ref from gpumem_alloc_entry() */
-		kgsl_mem_entry_put(context->user_ctxt_record);
+		kgsl_mem_entry_put_deferred(context->user_ctxt_record);
 	}
 
 	/* wake threads waiting to submit commands from this context */

@@ -111,7 +111,7 @@ struct kgsl_context;
  * @stats: Struct containing atomic memory statistics
  * @full_cache_threshold: the threshold that triggers a full cache flush
  * @workqueue: Pointer to a single threaded workqueue
- * @mem_workqueue: Pointer to a workqueue for deferring memory entries
+ * @mem_worker: Pointer to a kthread worker for deferring memory entries
  */
 struct kgsl_driver {
 	struct cdev cdev;
@@ -141,8 +141,8 @@ struct kgsl_driver {
 	} stats;
 	unsigned int full_cache_threshold;
 	struct workqueue_struct *workqueue;
-	struct workqueue_struct *mem_workqueue;
 	struct kthread_worker worker;
+	struct kthread_worker *mem_worker;
 	struct task_struct *worker_thread;
 };
 
@@ -254,7 +254,7 @@ struct kgsl_global_memdesc {
  *  are still references to it.
  * @dev_priv: back pointer to the device file that created this entry.
  * @metadata: String containing user specified metadata for the entry
- * @work: Work struct used to schedule a kgsl_mem_entry_put in atomic contexts
+ * @mem_work: kthread work struct used to schedule a kgsl_mem_entry_put_deferred
  */
 struct kgsl_mem_entry {
 	struct kref refcount;
@@ -265,7 +265,7 @@ struct kgsl_mem_entry {
 	struct kgsl_process_private *priv;
 	int pending_free;
 	char metadata[KGSL_GPUOBJ_ALLOC_METADATA_MAX + 1];
-	struct work_struct work;
+	struct kthread_work mem_work;
 	/**
 	 * @mapped: The number of bytes in this entry that are mapped to
 	 * userspace
@@ -443,6 +443,7 @@ long kgsl_ioctl_timeline_destroy(struct kgsl_device_private *dev_priv,
 		unsigned int cmd, void *data);
 
 void kgsl_mem_entry_destroy(struct kref *kref);
+void kgsl_mem_entry_destroy_deferred(struct kref *kref);
 
 void kgsl_get_egl_counts(struct kgsl_mem_entry *entry,
 			int *egl_surface_count, int *egl_image_count);
@@ -556,6 +557,21 @@ kgsl_mem_entry_put(struct kgsl_mem_entry *entry)
 {
 	if (entry)
 		kref_put(&entry->refcount, kgsl_mem_entry_destroy);
+}
+
+/**
+ * kgsl_mem_entry_put_deferred - Puts refcount and triggers deferred
+ *  mem_entry destroy when refcount goes to zero.
+ * @entry: memory entry to be put.
+ *
+ * Use this to put a memory entry when we don't want to block
+ * the caller while destroying memory entry.
+ */
+static inline void
+kgsl_mem_entry_put_deferred(struct kgsl_mem_entry *entry)
+{
+	if (entry)
+		kref_put(&entry->refcount, kgsl_mem_entry_destroy_deferred);
 }
 
 /*

@@ -132,6 +132,16 @@ static const char * const POWER_SUPPLY_SCOPE_TEXT[] = {
 	[POWER_SUPPLY_SCOPE_DEVICE]	= "Device",
 };
 
+#ifdef CONFIG_LGE_PM
+static const char * const POWER_SUPPLY_STATUS_RAW_TEXT[] = {
+	[POWER_SUPPLY_STATUS_UNKNOWN]		= "Unknown",
+	[POWER_SUPPLY_STATUS_CHARGING]		= "Charging",
+	[POWER_SUPPLY_STATUS_DISCHARGING]	= "Discharging",
+	[POWER_SUPPLY_STATUS_NOT_CHARGING]	= "Not charging",
+	[POWER_SUPPLY_STATUS_FULL]		= "Full",
+};
+#endif
+
 static struct power_supply_attr power_supply_attrs[] = {
 	/* Properties of type `int' */
 	POWER_SUPPLY_ENUM_ATTR(STATUS),
@@ -214,6 +224,11 @@ static struct power_supply_attr power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(TX_ADAPTER),
 	POWER_SUPPLY_ATTR(SIGNAL_STRENGTH),
 	POWER_SUPPLY_ATTR(REVERSE_CHG_MODE),
+#ifdef CONFIG_LGE_PM
+	POWER_SUPPLY_ENUM_ATTR(STATUS_RAW),
+	POWER_SUPPLY_ATTR(CAPACITY_RAW),
+	POWER_SUPPLY_ATTR(UPDATE_UEVENT),
+#endif
 };
 
 static struct attribute *
@@ -481,6 +496,15 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 		if (ret)
 			goto out;
 	}
+
+#ifdef CONFIG_LGE_PM_VENEER_PSY
+	{	extern bool veneer_uevent_duplicated(const char* sender, char* data, int length);
+		if (veneer_uevent_duplicated(psy->desc->name, env->buf, env->buflen-1)) {
+			pr_debug("an UEVENT for %s is skipped\n", psy->desc->name);
+			ret = -ENOTSYNC;
+		}
+	}
+#endif
 
 out:
 	free_page((unsigned long)prop_buf);

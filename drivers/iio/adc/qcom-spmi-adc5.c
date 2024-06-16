@@ -695,8 +695,8 @@ static const struct adc5_channels adc5_chans_pmic[ADC5_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC5_AMUX_THM2]	= ADC5_CHAN_TEMP("amux_thm2", 0,
 					SCALE_HW_CALIB_PM5_SMB_TEMP)
-	[ADC5_PARALLEL_ISENSE]	= ADC5_CHAN_VOLT("parallel_isense", 1,
-					SCALE_HW_CALIB_CUR)
+	[ADC5_PARALLEL_ISENSE]	= ADC5_CHAN_VOLT("parallel_isense", 0,
+					SCALE_HW_CALIB_PM5_CUR)
 	[ADC5_GPIO1_100K_PU]	= ADC5_CHAN_TEMP("gpio1_100k_pu", 0,
 					SCALE_HW_CALIB_THERM_100K_PULLUP)
 	[ADC5_GPIO2_100K_PU]	= ADC5_CHAN_TEMP("gpio2_100k_pu", 0,
@@ -736,8 +736,13 @@ static const struct adc5_channels adc7_chans_pmic[ADC5_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
 	[ADC7_AMUX_THM3_100K_PU]	= ADC5_CHAN_TEMP("amux_thm3_pu2", 0,
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
+#ifdef CONFIG_LGE_PM
+	[ADC7_AMUX_THM4_100K_PU]	= ADC5_CHAN_VOLT("pmic_hardware_id", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#else
 	[ADC7_AMUX_THM4_100K_PU]	= ADC5_CHAN_TEMP("amux_thm4_pu2", 0,
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
+#endif
 	[ADC7_AMUX_THM5_100K_PU]	= ADC5_CHAN_TEMP("amux_thm5_pu2", 0,
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
 	[ADC7_AMUX_THM6_100K_PU]	= ADC5_CHAN_TEMP("amux_thm6_pu2", 0,
@@ -750,6 +755,10 @@ static const struct adc5_channels adc7_chans_pmic[ADC5_MAX_CHANNEL] = {
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
 	[ADC7_GPIO4_100K_PU]	= ADC5_CHAN_TEMP("gpio4_pu2", 0,
 					SCALE_HW_CALIB_THERM_100K_PU_PM7)
+#ifdef CONFIG_LGE_PM
+	[ADC7_AMUX_THM3_400K_PU] = ADC5_CHAN_VOLT("usb_id", 1,
+					SCALE_HW_CALIB_DEFAULT)
+#endif
 };
 
 static const struct adc5_channels adc5_chans_rev2[ADC5_MAX_CHANNEL] = {

@@ -133,6 +133,11 @@ struct flash_node_data {
 	enum flash_led_type		type;
 	bool				configured;
 	bool				enabled;
+#ifdef CONFIG_MACH_LGE
+	struct device	*dbg_dev;
+	unsigned int	dbg_current;
+	u8 				dbg_duration;
+#endif
 };
 
 struct flash_switch_data {
@@ -197,6 +202,10 @@ struct qti_flash_led {
 	bool				module_en;
 	bool				trigger_lmh;
 	bool				non_all_mask_switch_present;
+#ifdef CONFIG_MACH_LGE
+	struct device	*dev_fault;
+	u8	last_fault;
+#endif
 };
 
 struct flash_current_headroom {
@@ -211,6 +220,125 @@ static const struct flash_current_headroom pm8350c_map[4] = {
 static const u32 flash_led_max_ires_values[MAX_IRES_LEVELS] = {
 	IRES_5P0_MAX_CURR_MA, IRES_12P5_MAX_CURR_MA
 };
+
+#ifdef CONFIG_MACH_LGE
+static int timeout_to_code(u32);
+
+static ssize_t flash_brightness_show(struct device *dev,
+		struct device_attribute *attr, char *buf) {
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct flash_node_data *fnode = NULL;
+	struct led_classdev_flash *fdev = NULL;
+	size_t size = 0;
+
+	if (!strncmp(led_cdev->name, "led:flash", strlen("led:flash")) ||
+			!strncmp(led_cdev->name, "led:torch",
+						strlen("led:torch"))) {
+		fdev = container_of(led_cdev, struct led_classdev_flash, led_cdev);
+		fnode = container_of(fdev, struct flash_node_data, fdev);
+		size = sprintf(buf, "%u\n", fnode->dbg_current);
+	}
+
+	return size;
+}
+
+static ssize_t flash_brightness_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size) {
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct led_classdev_flash *fdev = NULL;
+	unsigned long state;
+	ssize_t ret = -EINVAL;
+	struct flash_node_data *fnode = NULL;
+
+	ret = kstrtoul(buf, 10, &state);
+	if (ret)
+		return ret;
+
+	if (!strncmp(led_cdev->name, "led:flash", strlen("led:flash")) ||
+			!strncmp(led_cdev->name, "led:torch",
+						strlen("led:torch"))) {
+		fdev = container_of(led_cdev, struct led_classdev_flash, led_cdev);
+		fnode = container_of(fdev, struct flash_node_data, fdev);
+		fnode->dbg_current = state;
+	}
+
+	return size;
+}
+static DEVICE_ATTR_RW(flash_brightness);
+
+static ssize_t flash_duration_show(struct device *dev,
+		struct device_attribute *attr, char *buf) {
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct led_classdev_flash *fdev = NULL;
+	struct flash_node_data *fnode = NULL;
+	size_t size = 0;
+
+	if (!strncmp(led_cdev->name, "led:flash", strlen("led:flash")) ||
+			!strncmp(led_cdev->name, "led:torch",
+						strlen("led:torch"))) {
+		fdev = container_of(led_cdev, struct led_classdev_flash, led_cdev);
+		fnode = container_of(fdev, struct flash_node_data, fdev);
+		size = sprintf(buf, "%u\n", fnode->dbg_duration);
+	}
+
+	return size;
+}
+
+static ssize_t flash_duration_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size) {
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct led_classdev_flash *fdev = NULL;
+	u32 state;
+	ssize_t ret = -EINVAL;
+	struct flash_node_data *fnode = NULL;
+
+	ret = kstrtou32(buf, 10, &state);
+	if (ret)
+		return ret;
+
+	if (!strncmp(led_cdev->name, "led:flash", strlen("led:flash")) ||
+			!strncmp(led_cdev->name, "led:torch",
+						strlen("led:torch"))) {
+		fdev = container_of(led_cdev, struct led_classdev_flash, led_cdev);
+		fnode = container_of(fdev, struct flash_node_data, fdev);
+		if(state < 0 || state > 1280)
+			fnode->dbg_duration = 0;
+		else {
+			fnode->dbg_duration = timeout_to_code(state);
+			if (fnode->duration)
+				fnode->duration |= FLASH_LED_SAFETY_TIMER_EN;
+		}
+	}
+
+	return size;
+}
+static DEVICE_ATTR_RW(flash_duration);
+
+static struct attribute *flash_class_attrs[] = {
+	&dev_attr_flash_brightness.attr,
+	&dev_attr_flash_duration.attr,
+	NULL,
+};
+
+static const struct attribute_group flash_group = {
+	.attrs = flash_class_attrs,
+};
+
+static const struct attribute_group *flash_groups[] = {
+	&flash_group,
+	NULL,
+};
+extern struct class* get_camera_class(void);
+
+static ssize_t show_flash_fault_status(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct qti_flash_led *led = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%x\n", led->last_fault);
+}
+static DEVICE_ATTR(fault_status, S_IRUGO, show_flash_fault_status, NULL);
+#endif
 
 static int timeout_to_code(u32 timeout)
 {
@@ -437,11 +565,26 @@ static int qti_flash_led_enable(struct flash_node_data *fnode)
 	}
 
 	if (fnode->type == FLASH_LED_TYPE_FLASH) {
+#ifndef CONFIG_MACH_LGE
 		val = fnode->duration | FLASH_LED_SAFETY_TIMER_EN;
 		rc = qti_flash_led_write(led,
 			FLASH_LED_SAFETY_TIMER(addr_offset), &val, 1);
 		if (rc < 0)
 			goto out;
+#else
+		val = (fnode->dbg_duration ? fnode->dbg_duration: fnode->duration) | FLASH_LED_SAFETY_TIMER_EN;
+
+		rc = qti_flash_led_write(led,
+			FLASH_LED_SAFETY_TIMER(addr_offset),
+			&val,1);
+		if(fnode->dbg_duration) {
+			pr_info("duration changed. %u -> %u\n", fnode->duration,
+				fnode->dbg_duration);
+		}
+
+		if (rc < 0)
+			goto out;
+#endif
 	}
 
 	fnode->configured = true;
@@ -507,6 +650,14 @@ static int __qti_flash_led_brightness_set(struct led_classdev *led_cdev,
 
 	fdev = container_of(led_cdev, struct led_classdev_flash, led_cdev);
 	fnode = container_of(fdev, struct flash_node_data, fdev);
+
+#ifdef CONFIG_MACH_LGE
+	if(fnode->dbg_current) {
+		pr_info("current changed, %d -> %d\n", brightness, fnode->dbg_current);
+		brightness = fnode->dbg_current;
+		current_ma = fnode->dbg_current;
+	}
+#endif
 
 	if (!brightness) {
 		rc = qti_flash_led_strobe(fnode->led, NULL,
@@ -1369,6 +1520,9 @@ static irqreturn_t qti_flash_led_irq_handler(int irq, void *_led)
 
 	pr_debug("LED irq handled, irq_status=%02x led_status1=%02x led_status2=%02x\n",
 			irq_status, led_status1, led_status2);
+#ifdef CONFIG_MACH_LGE
+	led->last_fault = led_status1;
+#endif
 
 exit:
 	return IRQ_HANDLED;
@@ -1621,6 +1775,10 @@ static int register_flash_device(struct qti_flash_led *led,
 			fnode->fdev.led_cdev.name);
 		return rc;
 	}
+#ifdef CONFIG_MACH_LGE
+    fnode->dbg_dev = device_create_with_groups(get_camera_class(), &led->pdev->dev, 0,
+                            &fnode->fdev.led_cdev, flash_groups, "%s", fnode->fdev.led_cdev.name);
+#endif
 
 	return 0;
 }
@@ -1812,6 +1970,16 @@ static int qti_flash_led_probe(struct platform_device *pdev)
 	}
 
 	dev_set_drvdata(&pdev->dev, led);
+
+#ifdef CONFIG_MACH_LGE
+		led->last_fault = 0;
+		led->dev_fault = device_create(get_camera_class(), &led->pdev->dev,
+			0, led, "flash_fault_status");
+		rc = sysfs_create_file(&led->dev_fault->kobj,
+				&dev_attr_fault_status.attr);
+		if (rc)
+			pr_err("error creating flash_fault_status\n");
+#endif
 
 	return 0;
 }

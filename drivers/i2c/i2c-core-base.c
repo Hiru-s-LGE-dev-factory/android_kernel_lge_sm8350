@@ -692,8 +692,18 @@ static void i2c_dev_set_name(struct i2c_adapter *adap,
 		return;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	if(client->name != NULL && (!strcmp(client->name, "dw7914"))){
+		pr_info("%s dev_name:%s\n", __func__, client->name);
+		dev_set_name(&client->dev, "%d-%04x", 20, i2c_encode_flags_to_addr(client));
+	} else {
+		dev_set_name(&client->dev, "%d-%04x", i2c_adapter_id(adap),
+			i2c_encode_flags_to_addr(client));
+	}
+#else
 	dev_set_name(&client->dev, "%d-%04x", i2c_adapter_id(adap),
 		     i2c_encode_flags_to_addr(client));
+#endif
 }
 
 int i2c_dev_irq_from_resources(const struct resource *resources,

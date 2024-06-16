@@ -1,0 +1,10 @@
+config APPLICATION_MANAGER
+	bool "Enable the application manager for Android"
+	default n
+	help
+	  The application manager recognizes the usage pattern of the
+	  user's application and improves performance through application
+	  management that matches the recognized pattern.
+
+	  The application manager improves the average entry time of
+	  applications by up to 35%, when there are usage patterns.

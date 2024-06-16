@@ -477,6 +477,18 @@ struct usb_bus {
 	int monitored;			/* non-zero when monitored */
 #endif
 
+#ifdef CONFIG_LGE_USB
+	unsigned skip_resume:1;         /* All USB devices are brought into full
+					 * power state after system resume. It
+					 * is desirable for some buses to keep
+					 * their devices in suspend state even
+					 * after system resume. The devices
+					 * are resumed later when a remote
+					 * wakeup is detected or an interface
+					 * driver starts I/O.
+					 */
+#endif
+
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);

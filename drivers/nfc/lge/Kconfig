@@ -1,0 +1,8 @@
+#
+# Nxp SPi protocol (SPI) devices
+#
+
+config NFC_SELECTIVE_DRIVER
+	tristate "NFC_SELECTIVE_DRIVER"
+	default n
+

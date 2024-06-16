@@ -7,7 +7,8 @@
 #define __QSEECOM_KERNEL_H_
 
 #include <linux/types.h>
-
+#include <linux/scatterlist.h>
+#include <linux/dma-buf.h>
 
 #define QSEECOM_ALIGN_SIZE	0x40
 #define QSEECOM_ALIGN_MASK	(QSEECOM_ALIGN_SIZE - 1)
@@ -43,5 +44,13 @@ int qseecom_process_listener_from_smcinvoke(uint32_t *result,
 }
 #endif
 
-
+int qseecom_dmabuf_map(int ion_fd, struct sg_table **sgt,
+			struct dma_buf_attachment **attach,
+			struct dma_buf **dmabuf);
+void qseecom_dmabuf_unmap(struct sg_table *sgt,
+			struct dma_buf_attachment *attach,
+			struct dma_buf *dmabuf);
+int qseecom_destroy_bridge_callback(struct dma_buf *dmabuf, void *dtor_data);
+int qseecom_create_bridge_for_secbuf(int ion_fd, struct dma_buf *dmabuf,
+					struct sg_table *sgt);
 #endif /* __QSEECOM_KERNEL_H_ */

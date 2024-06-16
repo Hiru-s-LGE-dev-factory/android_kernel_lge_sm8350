@@ -209,6 +209,10 @@ static void *typec_mux_match(struct device_connection *con, int ep, void *data)
 	/* Accessory Mode muxes */
 	if (!desc) {
 		match = fwnode_property_present(con->fwnode, "accessory");
+#ifdef CONFIG_LGE_USB_SBU_SWITCH
+		if (!match)
+			match = fwnode_property_present(con->fwnode, "accessory-lge");
+#endif
 		if (match)
 			goto find_mux;
 		return NULL;

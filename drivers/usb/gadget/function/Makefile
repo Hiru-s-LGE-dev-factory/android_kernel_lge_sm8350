@@ -67,3 +67,6 @@ ifeq ($(CONFIG_USB_F_RNDIS),)
 usb_f_gsi-y			+= rndis.o
 endif
 obj-$(CONFIG_USB_F_GSI)		+= usb_f_gsi.o
+
+usb_f_laf-y			:= f_laf.o
+obj-$(CONFIG_LGE_USB_F_LAF)	+= usb_f_laf.o

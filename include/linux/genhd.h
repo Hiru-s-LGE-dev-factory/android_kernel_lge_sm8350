@@ -233,7 +233,6 @@ struct gendisk {
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
-
 };
 
 static inline struct gendisk *part_to_disk(struct hd_struct *part)

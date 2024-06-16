@@ -10,6 +10,12 @@
 static inline void ufs_qcom_phy_qmp_v4_start_serdes(struct ufs_qcom_phy *phy);
 static int ufs_qcom_phy_qmp_v4_is_pcs_ready(struct ufs_qcom_phy *phy_common);
 
+#ifdef CONFIG_LFS_UFSDBG_TUNABLES
+#define IMPORT_TO_UFSMPHY
+#include "../../scsi/ufs/ufsdbg-tunables.c"
+#undef IMPORT_TO_UFSMPHY
+#endif
+
 static int ufs_qcom_phy_qmp_v4_phy_calibrate(struct phy *generic_phy)
 {
 	struct ufs_qcom_phy *ufs_qcom_phy = get_ufs_qcom_phy(generic_phy);
@@ -54,6 +60,12 @@ static int ufs_qcom_phy_qmp_v4_phy_calibrate(struct phy *generic_phy)
 	if (is_rate_B)
 		ufs_qcom_phy_write_tbl(ufs_qcom_phy, phy_cal_table_rate_B,
 				       ARRAY_SIZE(phy_cal_table_rate_B));
+
+#ifdef CONFIG_LFS_UFSDBG_TUNABLES
+	if (ufs_qcom_phy->phy_spec_ops->calibrate_phy_tunables) {
+		ufs_qcom_phy->phy_spec_ops->calibrate_phy_tunables(ufs_qcom_phy);
+	}
+#endif
 
 	writel_relaxed(0x00, ufs_qcom_phy->mmio + UFS_PHY_SW_RESET);
 	/* flush buffered writes */
@@ -266,6 +278,11 @@ static struct ufs_qcom_phy_specific_ops phy_v4_ops = {
 	.ctrl_rx_linecfg	= ufs_qcom_phy_qmp_v4_ctrl_rx_linecfg,
 	.power_control		= ufs_qcom_phy_qmp_v4_power_control,
 	.dbg_register_dump	= ufs_qcom_phy_qmp_v4_dbg_register_dump,
+
+#ifdef CONFIG_LFS_UFSDBG_TUNABLES
+	.calibrate_phy_tunables = ufsdbg_tunables_mphy_apply,
+#endif
+
 };
 
 static int ufs_qcom_phy_qmp_v4_probe(struct platform_device *pdev)

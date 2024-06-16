@@ -229,9 +229,16 @@ out:
 		name = "<encrypted>";
 	else
 		name = raw_inode->i_name;
+#ifdef CONFIG_LFS_F2FS
+	if(err)
+		f2fs_notice(F2FS_I_SB(inode), "%s: ino = %x, name = %s, dir = %lx, err = %d",
+			    __func__, ino_of_node(ipage), name,
+			    IS_ERR(dir) ? 0 : dir->i_ino, err);
+#else
 	f2fs_notice(F2FS_I_SB(inode), "%s: ino = %x, name = %s, dir = %lx, err = %d",
 		    __func__, ino_of_node(ipage), name,
 		    IS_ERR(dir) ? 0 : dir->i_ino, err);
+#endif
 	return err;
 }
 
@@ -331,9 +338,12 @@ static int recover_inode(struct inode *inode, struct page *page)
 		name = "<encrypted>";
 	else
 		name = F2FS_INODE(page)->i_name;
+#ifdef CONFIG_LFS_F2FS
 
+#else
 	f2fs_notice(F2FS_I_SB(inode), "recover_inode: ino = %x, name = %s, inline = %x",
 		    ino_of_node(page), name, raw->i_inline);
+#endif
 	return 0;
 }
 
@@ -679,9 +689,16 @@ retry_prev:
 err:
 	f2fs_put_dnode(&dn);
 out:
+#ifdef CONFIG_LFS_F2FS
+	if(err)
+		f2fs_notice(sbi, "recover_data: ino = %lx (i_size: %s) recovered = %d, err = %d",
+		    inode->i_ino, file_keep_isize(inode) ? "keep" : "recover",
+		    recovered, err);
+#else
 	f2fs_notice(sbi, "recover_data: ino = %lx (i_size: %s) recovered = %d, err = %d",
 		    inode->i_ino, file_keep_isize(inode) ? "keep" : "recover",
 		    recovered, err);
+#endif
 	return err;
 }
 
@@ -697,6 +714,9 @@ static int recover_data(struct f2fs_sb_info *sbi, struct list_head *inode_list,
 	curseg = CURSEG_I(sbi, CURSEG_WARM_NODE);
 	blkaddr = NEXT_FREE_BLKADDR(sbi, curseg);
 
+#ifdef CONFIG_LFS_F2FS
+	f2fs_notice(sbi, "Start %s", __func__);
+#endif
 	while (1) {
 		struct fsync_inode_entry *entry;
 
@@ -753,6 +773,9 @@ next:
 	}
 	if (!err)
 		f2fs_allocate_new_segments(sbi, NO_CHECK_TYPE);
+#ifdef CONFIG_LFS_F2FS
+	f2fs_notice(sbi, "Finished %s", __func__);
+#endif
 	return err;
 }
 
@@ -793,7 +816,7 @@ int f2fs_recover_fsync_data(struct f2fs_sb_info *sbi, bool check_only)
 	INIT_LIST_HEAD(&dir_list);
 
 	/* prevent checkpoint */
-	mutex_lock(&sbi->cp_mutex);
+	down_write(&sbi->cp_global_sem);
 
 	/* step #1: find fsynced inode numbers */
 	err = find_fsync_dnodes(sbi, &inode_list, check_only);
@@ -844,7 +867,7 @@ skip:
 	if (!err)
 		clear_sbi_flag(sbi, SBI_POR_DOING);
 
-	mutex_unlock(&sbi->cp_mutex);
+	up_write(&sbi->cp_global_sem);
 
 	/* let's drop all the directory inodes for clean checkpoint */
 	destroy_fsync_dnodes(&dir_list, err);

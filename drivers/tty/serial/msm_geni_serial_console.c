@@ -7,6 +7,9 @@
 #include <linux/serial_core.h>
 #include <linux/io.h>
 
+#ifdef CONFIG_LGE_USB_DEBUGGER
+#include <soc/qcom/lge/board_lge.h>
+#endif
 
 #define SE_UART_TX_TRANS_CFG		(0x25C)
 #define SE_UART_TX_WORD_LEN		(0x268)
@@ -464,6 +467,10 @@ msm_geni_serial_early_console_write(struct console *con, const char *s,
 {
 	struct earlycon_device *dev = con->data;
 
+#ifdef CONFIG_LGE_USB_DEBUGGER
+	if(lge_get_usb_debugger() <= 0)
+		return;
+#endif
 	__msm_geni_serial_console_write(&dev->port, s, n);
 }
 

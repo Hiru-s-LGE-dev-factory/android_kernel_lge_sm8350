@@ -24,6 +24,9 @@
 #include <linux/sched/task.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#ifdef CONFIG_ION_DEBUGGING_PROCFS
+#include <linux/proc_fs.h>
+#endif
 
 #include "ion_private.h"
 
@@ -328,6 +331,9 @@ int __ion_device_add_heap(struct ion_heap *heap, struct module *owner)
 	spin_lock_init(&heap->free_lock);
 	spin_lock_init(&heap->stat_lock);
 	heap->free_list_size = 0;
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	heap->free_highorder_size = 0;
+#endif
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE) {
 		ret = ion_heap_init_deferred_free(heap);
@@ -371,6 +377,9 @@ int __ion_device_add_heap(struct ion_heap *heap, struct module *owner)
 	}
 
 	heap->debugfs_dir = heap_root;
+#ifdef CONFIG_ION_DEBUGGING
+	heap->dev = internal_dev;
+#endif
 	down_write(&dev->lock);
 	ret = ion_assign_heap_id(heap, dev);
 	if (ret) {
@@ -423,6 +432,65 @@ void ion_device_remove_heap(struct ion_heap *heap)
 	up_write(&dev->lock);
 }
 EXPORT_SYMBOL_GPL(ion_device_remove_heap);
+
+#ifdef CONFIG_ION_DEBUGGING_PROCFS
+extern int ion_msm_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s, void *unused);
+static int ion_msm_system_heap_show(struct seq_file *s, void *unused)
+{
+	struct ion_device *dev = internal_dev;
+	struct rb_node *n;
+	size_t total_size = 0;
+	struct ion_heap *heap;
+
+	/* find the system heap */
+	plist_for_each_entry(heap, &dev->heaps, node) {
+		if(!strcmp(heap->name, "system")) {
+			dev = heap->dev;
+			break;
+		}
+	}
+
+	seq_printf(s, "%16s %16s %16s %16s %16s\n", "client", "pid", "thread", "tid", "size");
+
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+	mutex_lock(&dev->buffer_lock);
+	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
+		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer, node);
+		if (buffer->heap->id != heap->id)
+			continue;
+		total_size += buffer->size;
+		seq_printf(s, "%16s %16u %16s %16u %16zu\n",
+								buffer->task_comm, buffer->pid,
+								buffer->thread_comm, buffer->tid,
+								buffer->size);
+	}
+	mutex_unlock(&dev->buffer_lock);
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+	seq_printf(s, "%16s %16llu\n", "buffers", heap->num_of_buffers);
+	seq_printf(s, "%16s %16llu\n", "total size", heap->num_of_alloc_bytes);
+	seq_printf(s, "%16s %16llu\n", "peak allocated", heap->alloc_bytes_wm);
+	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
+		seq_printf(s, "%16s %16zu\n", "deferred free", heap->free_list_size);
+	seq_puts(s, "------------------------------------------------------------------------------------\n");
+
+	/* system heap stats */
+	ion_msm_system_heap_debug_show(heap, s, unused);
+	return 0;
+}
+
+int ion_system_heap_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_msm_system_heap_show, inode->i_private);
+}
+
+const struct file_operations ion_system_heap_fops = {
+  .owner = THIS_MODULE,
+  .open = ion_system_heap_open,
+  .read = seq_read,
+  .llseek = seq_lseek,
+  .release = single_release,
+};
+#endif
 
 static ssize_t
 total_heaps_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -507,6 +575,13 @@ static int ion_device_create(void)
 	}
 
 	idev->debug_root = debugfs_create_dir("ion", NULL);
+
+#ifdef CONFIG_ION_DEBUGGING
+#ifdef CONFIG_ION_DEBUGGING_PROCFS
+	proc_create("ioninfo", 0444, NULL, &ion_system_heap_fops);
+#endif
+	mutex_init(&idev->buffer_lock);
+#endif
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	internal_dev = idev;

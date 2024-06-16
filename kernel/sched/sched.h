@@ -569,6 +569,10 @@ static inline int walk_tg_tree(tg_visitor down, tg_visitor up, void *data)
 
 extern int tg_nop(struct task_group *tg, void *data);
 
+#ifdef CONFIG_SCHED_CAS
+extern void set_uclamp_touch(struct task_group *top_tg, unsigned int value);
+#endif
+
 extern void free_fair_sched_group(struct task_group *tg);
 extern int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent);
 extern void online_fair_sched_group(struct task_group *tg);
@@ -3004,6 +3008,7 @@ static inline struct walt_related_thread_group
 	return rcu_dereference(p->wts.grp);
 }
 
+/* applying the task threshold for all types of low latency tasks. */
 static inline bool walt_low_latency_task(struct task_struct *p)
 {
 	return p->wts.low_latency &&

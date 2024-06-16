@@ -775,6 +775,20 @@ struct ufs_hba {
 	enum ufs_pm_level spm_lvl;
 	struct device_attribute rpm_lvl_attr;
 	struct device_attribute spm_lvl_attr;
+
+#ifdef CONFIG_LFS_UFS_SYSFS_COMMON
+	struct device_attribute health_desc_attr;
+	struct device_attribute show_hba_attr;
+	struct device_attribute dump_config_desc_attr;
+	struct device_attribute dump_unit_desc_attr;
+	struct device_attribute dump_rpmb_unit_desc_attr;
+	struct device_attribute dump_vendor_health_desc_attr;
+	struct device_attribute dump_power_mode_desc_attr;
+#endif
+#ifdef CONFIG_LFS_UFSDBG_TUNABLES
+	void *ufsdbg_tunables;
+#endif
+
 	int pm_op_in_progress;
 
 	/* Auto-Hibernate Idle Timer register value */

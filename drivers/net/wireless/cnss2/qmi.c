@@ -10,6 +10,8 @@
 #include "main.h"
 #include "qmi.h"
 
+#include <soc/qcom/lge/board_lge.h>
+
 #define WLFW_SERVICE_INS_ID_V01		1
 #define WLFW_CLIENT_ID			0x4b4e454c
 #define BDF_FILE_NAME_PREFIX		"bdwlan"
@@ -485,6 +487,26 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 
 	switch (bdf_type) {
 	case CNSS_BDF_ELF:
+		/* LGE_CHANGE_S, [protocol-wifi@lge.com], use elf file only */
+		snprintf(filename, filename_len, ELF_BDF_FILE_NAME);
+#if defined(CONFIG_MACH_LAHAINA_RAINBOWLM)
+{
+	int rev_no = 0;
+	rev_no = lge_get_board_rev_no();
+	cnss_pr_info("cnss_get_bdf_file_name rev = %d\n",
+		     rev_no);
+	if (rev_no == HW_REV_B) {
+		snprintf(filename, filename_len, "bdwlan.erb");
+		cnss_pr_info("cnss_get_bdf_file_name name = %s\n",
+		     filename);
+	} else if (rev_no < HW_REV_A) {
+		snprintf(filename, filename_len, "bdwlan.er0");
+		cnss_pr_info("cnss_get_bdf_file_name name = %s\n",
+		     filename);
+	}
+}
+#endif
+		/* qct original code
 		if (plat_priv->board_info.board_id == 0xFF)
 			snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
 		else if (plat_priv->board_info.board_id < 0xFF)
@@ -496,6 +518,8 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				 BDF_FILE_NAME_PREFIX "%02x.e%02x",
 				 plat_priv->board_info.board_id >> 8 & 0xFF,
 				 plat_priv->board_info.board_id & 0xFF);
+		*/
+		/* LGE_CHANGE_E, [protocol-wifi@lge.com], use elf file only */
 		break;
 	case CNSS_BDF_BIN:
 		if (plat_priv->board_info.board_id == 0xFF)
@@ -525,8 +549,9 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 		break;
 	}
 
+	/* qct original code
 	if (ret >= 0)
-		cnss_bus_add_fw_prefix_name(plat_priv, filename, filename_tmp);
+		cnss_bus_add_fw_prefix_name(plat_priv, filename, filename_tmp); */
 
 	return ret;
 }
@@ -1660,8 +1685,8 @@ int cnss_wlfw_get_info_send_sync(struct cnss_plat_data *plat_priv, int type,
 	struct qmi_txn txn;
 	int ret = 0;
 
-	cnss_pr_vdbg("Sending get info message, type: %d, cmd length: %d, state: 0x%lx\n",
-		     type, cmd_len, plat_priv->driver_state);
+	cnss_pr_buf("Sending get info message, type: %d, cmd length: %d, state: 0x%lx\n",
+		    type, cmd_len, plat_priv->driver_state);
 
 	if (cmd_len > QMI_WLFW_MAX_DATA_SIZE_V01)
 		return -EINVAL;
@@ -2015,16 +2040,16 @@ static void cnss_wlfw_respond_get_info_ind_cb(struct qmi_handle *qmi_wlfw,
 		container_of(qmi_wlfw, struct cnss_plat_data, qmi_wlfw);
 	const struct wlfw_respond_get_info_ind_msg_v01 *ind_msg = data;
 
-	cnss_pr_vdbg("Received QMI WLFW respond get info indication\n");
+	cnss_pr_buf("Received QMI WLFW respond get info indication\n");
 
 	if (!txn) {
 		cnss_pr_err("Spurious indication\n");
 		return;
 	}
 
-	cnss_pr_vdbg("Extract message with event length: %d, type: %d, is last: %d, seq no: %d\n",
-		     ind_msg->data_len, ind_msg->type,
-		     ind_msg->is_last, ind_msg->seq_no);
+	cnss_pr_buf("Extract message with event length: %d, type: %d, is last: %d, seq no: %d\n",
+		    ind_msg->data_len, ind_msg->type,
+		    ind_msg->is_last, ind_msg->seq_no);
 
 	if (plat_priv->get_info_cb_ctx && plat_priv->get_info_cb)
 		plat_priv->get_info_cb(plat_priv->get_info_cb_ctx,

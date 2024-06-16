@@ -1747,6 +1747,26 @@ static void kgsl_iommu_pagefault_resume(struct kgsl_mmu *mmu)
 	struct kgsl_iommu_context *ctx = &iommu->user_context;
 
 	if (ctx->default_pt != NULL && ctx->stalled_on_fault) {
+		u32 sctlr_val = KGSL_IOMMU_GET_CTX_REG(ctx,
+						KGSL_IOMMU_CTX_SCTLR);
+
+		/*
+		 * As part of recovery, GBIF halt sequence should be performed.
+		 * In a worst case scenario, if any GPU block is generating a
+		 * stream of un-ending faulting transactions, SMMU would enter
+		 * stall-on-fault mode again after resuming and not let GBIF
+		 * halt succeed. In order to avoid that situation and terminate
+		 * those faulty transactions, set CFCFG and HUPCF to 0.
+		 */
+		sctlr_val &= ~(0x1 << KGSL_IOMMU_SCTLR_CFCFG_SHIFT);
+		sctlr_val &= ~(0x1 << KGSL_IOMMU_SCTLR_HUPCF_SHIFT);
+		KGSL_IOMMU_SET_CTX_REG(ctx, KGSL_IOMMU_CTX_SCTLR, sctlr_val);
+		/*
+		 * Make sure the above register write is not reordered across
+		 * the barrier as we use writel_relaxed to write it.
+		 */
+		wmb();
+
 		/*
 		 * This will only clear fault bits in FSR. FSR.SS will still
 		 * be set. Writing to RESUME (below) is the only way to clear
@@ -2169,14 +2189,37 @@ out:
 	return ret;
 }
 
+static int get_gpuaddr(struct kgsl_pagetable *pagetable,
+		struct kgsl_memdesc *memdesc, u64 start, u64 end,
+		u64 size, u64 align)
+{
+	u64 addr;
+	int ret;
+
+	spin_lock(&pagetable->lock);
+	addr = _get_unmapped_area(pagetable, start, end, size, align);
+	if (addr == (u64) -ENOMEM) {
+		spin_unlock(&pagetable->lock);
+		return -ENOMEM;
+	}
+
+	ret = _insert_gpuaddr(pagetable, addr, size);
+	spin_unlock(&pagetable->lock);
+
+	if (ret == 0) {
+		memdesc->gpuaddr = addr;
+		memdesc->pagetable = pagetable;
+	}
+
+	return ret;
+}
 
 static int kgsl_iommu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 		struct kgsl_memdesc *memdesc)
 {
 	struct kgsl_iommu_pt *pt = pagetable->priv;
 	int ret = 0;
-	uint64_t addr, start, end, size;
-	unsigned int align;
+	u64 start, end, size, align;
 
 	if (WARN_ON(kgsl_memdesc_use_cpu_map(memdesc)))
 		return -EINVAL;
@@ -2198,23 +2241,13 @@ static int kgsl_iommu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 		end = pt->va_end;
 	}
 
-	spin_lock(&pagetable->lock);
-
-	addr = _get_unmapped_area(pagetable, start, end, size, align);
-
-	if (addr == (uint64_t) -ENOMEM) {
-		ret = -ENOMEM;
-		goto out;
+	ret = get_gpuaddr(pagetable, memdesc, start, end, size, align);
+	/* if OoM, retry once after flushing mem_worker */
+	if (ret == -ENOMEM) {
+		kthread_flush_worker(kgsl_driver.mem_worker);
+		ret = get_gpuaddr(pagetable, memdesc, start, end, size, align);
 	}
 
-	ret = _insert_gpuaddr(pagetable, addr, size);
-	if (ret == 0) {
-		memdesc->gpuaddr = addr;
-		memdesc->pagetable = pagetable;
-	}
-
-out:
-	spin_unlock(&pagetable->lock);
 	return ret;
 }
 

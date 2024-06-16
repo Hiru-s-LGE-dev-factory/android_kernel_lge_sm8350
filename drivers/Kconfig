@@ -230,4 +230,14 @@ source "drivers/interconnect/Kconfig"
 
 source "drivers/counter/Kconfig"
 
+source "drivers/ice40/Kconfig"
+
+source "drivers/motors/Kconfig"
+
+source "drivers/tspdrv/Kconfig"
+
+source "drivers/broadcast/Kconfig"
+
+source "drivers/gud/Kconfig"
+
 endmenu

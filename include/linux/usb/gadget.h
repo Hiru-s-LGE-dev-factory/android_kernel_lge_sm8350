@@ -709,6 +709,9 @@ struct usb_gadget_driver {
 	char			*udc_name;
 	struct list_head	pending;
 	unsigned                match_existing_only:1;
+#ifdef CONFIG_LGE_USB_GADGET_MULTI_CONFIG
+	unsigned		multi_config:1;
+#endif
 };
 
 

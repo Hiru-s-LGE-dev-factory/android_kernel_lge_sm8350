@@ -628,6 +628,16 @@ config ZSMALLOC_STAT
 	  information to userspace via debugfs.
 	  If unsure, say N.
 
+config VMAP_LAZY_PURGING_FACTOR
+	int "multiplier to the size of purged vmap areas"
+	default "8" if ARM
+	default "32"
+	help
+	  It is used as a multiplier to the max VA pages purged in a
+	  single attempt. For 32-bit in order to reduce fragmentation
+	  of vmalloc space, we decrease the default value to "8".
+
+
 config GENERIC_EARLY_IOREMAP
 	bool
 
@@ -844,6 +854,79 @@ config OOM_TASK_PRIORITY_ADJ_LIMIT
 	  With this parameter you can limit the OOM killer to first kill
 	  tasks with an oom_score_adj value above a certain threshold
 	  before considering tasks with a lower oom_score_adj value.
+
+config SCAN_BALANCE_COUNT
+	bool "Enable scan balance count"
+	default n
+	help
+	  This option enables scan balance count.
+	  It will help to monitor scan balance with
+	  nr_scan_equal, nr_scan_fract, nr_scan_anon, nr_scan_file.
+
+config CMA_PINPAGE_MIGRATION
+	bool "CMA pinned page migration (EXPERIMENTAL)"
+	default n
+	help
+	  Turns on cma page migration for pinned page.
+
+# LGE_S
+source "mm/Kconfig.lfs"
+
+config MIGRATE_HIGHORDER
+	bool "Enable migrate highorder"
+	default n
+	select ALLOC_BUFFERS_IN_4K_CHUNKS
+	help
+	  This option enables migratetype highorder.
+	  It creates the specific reserved pool for 4 and more order allocation    .
+	  This is helpful fragmentation and allocation success rate
+	  that system has too much high order allocation.
+
+config HIGHORDER_PAGES_MID
+	int "Set migrate highorder pool size (pages) for mid size RAM"
+	depends on MIGRATE_HIGHORDER
+	default 153600
+	help
+	  Set the reserved size for migrate highorder.
+	  Normally, android system needs about 10% of total memory.
+	  (Thus, reserve 10% of memory if set to 0)
+	  Please check ION memory usage in your system.
+	  And, set this size about minimum (ION + extra) some memory.
+
+config HIGHORDER_PAGES_HIGH
+	int "Set migrate highorder pool size (pages) for high size RAM"
+	depends on MIGRATE_HIGHORDER
+	default 256000
+	help
+	  Set the reserved size for migrate highorder.
+	  Normally, android system needs about 10% of total memory.
+	  (Thus, reserve 10% of memory if set to 0)
+	  Please check ION memory usage in your system.
+	  And, set this size about minimum (ION + extra) some memory.
+
+
+config HIGHORDER_PAGES_THRESHOLD
+	int "Set migrate highorder threshold"
+	depends on MIGRATE_HIGHORDER
+	default 6291456
+	help
+	  Set the reserved size for migrate highorder.
+	  Normally, android system needs about 10% of total memory.
+	  (Thus, reserve 10% of memory if set to 0)
+	  Please check ION memory usage in your system.
+	  And, set this size about minimum (ION + extra) some memory.
+
+config HIGHATOMIC_WATERMARK
+       bool "Enable adding nr_free_highatomic to fix incorrect watermark routine"
+       default n
+       help
+        The highatomic migrate block can be increased to 1% of Total memory.
+	And, this is for only highorder ( > 0 order). So, this block size is
+	excepted during check watermark if allocation type isn't alloc_harder.
+	It has problem. The usage of highatomic is already calculated at NR_FREE_PAGES.
+	So, if we except total block size of highatomic, it's twice minus size of allocated
+	highatomic.
+	It's cause allocation fail although free pages enough.
 
 endmenu
 

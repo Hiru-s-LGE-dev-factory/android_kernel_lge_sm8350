@@ -70,7 +70,7 @@ static DEFINE_SPINLOCK(time_sync_lock);
 #define FORCE_WAKE_DELAY_MIN_US			4000
 #define FORCE_WAKE_DELAY_MAX_US			6000
 #define FORCE_WAKE_DELAY_TIMEOUT_US		60000
-#define CNSS_MHI_MISSION_MODE_TIMEOUT		60000
+#define MHI_MISSION_MODE_TIMEOUT		60000
 
 #define POWER_ON_RETRY_MAX_TIMES		3
 #define POWER_ON_RETRY_DELAY_MS			200
@@ -393,15 +393,25 @@ int cnss_pci_check_link_status(struct cnss_pci_data *pci_priv)
 static void cnss_pci_select_window(struct cnss_pci_data *pci_priv, u32 offset)
 {
 	u32 window = (offset >> WINDOW_SHIFT) & WINDOW_VALUE_MASK;
+	u32 window_enable = WINDOW_ENABLE_BIT | window;
+	u32 val;
 
-	writel_relaxed(WINDOW_ENABLE_BIT | window,
-		       QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET +
-		       pci_priv->bar);
+	writel_relaxed(window_enable, pci_priv->bar +
+		       QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
 
 	if (window != pci_priv->remap_window) {
 		pci_priv->remap_window = window;
 		cnss_pr_dbg("Config PCIe remap window register to 0x%x\n",
-			    WINDOW_ENABLE_BIT | window);
+			    window_enable);
+	}
+
+	/* Read it back to make sure the write has taken effect */
+	val = readl_relaxed(pci_priv->bar + QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
+	if (val != window_enable) {
+		cnss_pr_err("Failed to config window register to 0x%x, current value: 0x%x\n",
+			    window_enable, val);
+		if (!cnss_pci_check_link_status(pci_priv))
+			CNSS_ASSERT(0);
 	}
 }
 
@@ -892,6 +902,7 @@ int cnss_pci_prevent_l1(struct device *dev)
 {
 	struct pci_dev *pci_dev = to_pci_dev(dev);
 	struct cnss_pci_data *pci_priv = cnss_get_pci_priv(pci_dev);
+	int ret;
 
 	if (!pci_priv) {
 		cnss_pr_err("pci_priv is NULL\n");
@@ -908,7 +919,13 @@ int cnss_pci_prevent_l1(struct device *dev)
 		return -EIO;
 	}
 
-	return msm_pcie_prevent_l1(pci_dev);
+	ret = msm_pcie_prevent_l1(pci_dev);
+	if (ret) {
+		cnss_pr_err("Failed to prevent PCIe L1, considered as link down\n");
+		cnss_pci_link_down(dev);
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL(cnss_pci_prevent_l1);
 
@@ -1466,17 +1483,17 @@ int cnss_pci_start_mhi(struct cnss_pci_data *pci_priv)
 	if (ret)
 		return ret;
 
-	if (cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01) {
-		timeout = pci_priv->mhi_ctrl->timeout_ms;
-		pci_priv->mhi_ctrl->timeout_ms = CNSS_MHI_MISSION_MODE_TIMEOUT;
-	}
+	timeout = pci_priv->mhi_ctrl->timeout_ms;
+	if (cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
+		pci_priv->mhi_ctrl->timeout_ms = MHI_MISSION_MODE_TIMEOUT;
+	else /* For Perf builds the timeout is 30sec*/
+		pci_priv->mhi_ctrl->timeout_ms = (MHI_MISSION_MODE_TIMEOUT / 2);
 
 	ret = cnss_pci_set_mhi_state(pci_priv, CNSS_MHI_POWER_ON);
 	if (ret == 0)
 		cnss_wlan_adsp_pc_enable(pci_priv, false);
 
-	if (cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
-		pci_priv->mhi_ctrl->timeout_ms = timeout;
+	pci_priv->mhi_ctrl->timeout_ms = timeout;
 
 	/* -ETIMEDOUT means MHI power on has succeeded but timed out
 	 * for firmware mission mode event, so handle it properly.
@@ -1532,6 +1549,10 @@ static void cnss_pci_set_wlaon_pwr_ctrl(struct cnss_pci_data *pci_priv,
 	u32 val;
 
 	if (!plat_priv->set_wlaon_pwr_ctrl)
+		return;
+
+	if (pci_priv->pci_link_state == PCI_LINK_DOWN ||
+	    pci_priv->pci_link_down_ind)
 		return;
 
 	if (do_force_wake)
@@ -1999,17 +2020,19 @@ force_wake_put:
 		cnss_pci_force_wake_put(pci_priv);
 }
 
-#ifdef CONFIG_CNSS2_DEBUG
-static void cnss_pci_collect_dump(struct cnss_pci_data *pci_priv)
-{
-	cnss_pci_collect_dump_info(pci_priv, false);
-	CNSS_ASSERT(0);
-}
-#else
-static void cnss_pci_collect_dump(struct cnss_pci_data *pci_priv)
-{
-}
-#endif
+/* LGE_patch : sould be reverted before QPF */
+//#ifdef CONFIG_CNSS2_DEBUG
+//static void cnss_pci_collect_dump(struct cnss_pci_data *pci_priv)
+//{
+//	cnss_pci_collect_dump_info(pci_priv, false);
+//	CNSS_ASSERT(0);
+//}
+//#else
+//static void cnss_pci_collect_dump(struct cnss_pci_data *pci_priv)
+//{
+//}
+//#endif
+/* LGE_patch : sould be reverted before QPF */
 
 static int cnss_qca6174_powerup(struct cnss_pci_data *pci_priv)
 {
@@ -2203,7 +2226,11 @@ static int cnss_qca6290_shutdown(struct cnss_pci_data *pci_priv)
 	     test_bit(CNSS_IN_COLD_BOOT_CAL, &plat_priv->driver_state)) &&
 	    test_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state)) {
 		del_timer(&pci_priv->dev_rddm_timer);
-		cnss_pci_collect_dump(pci_priv);
+        /* LGE_patch : sould be reverted before QPF */
+//		cnss_pci_collect_dump(pci_priv);
+		cnss_pci_collect_dump_info(pci_priv, false);
+		CNSS_ASSERT(0);
+        /* LGE_patch : sould be reverted before QPF */
 	}
 
 	if (!cnss_is_device_powered_on(plat_priv)) {
@@ -3387,8 +3414,8 @@ int cnss_pci_qmi_send_get(struct cnss_pci_data *pci_priv)
 	    !pci_priv->qmi_send_usage_count)
 		ret = cnss_pci_resume_bus(pci_priv);
 	pci_priv->qmi_send_usage_count++;
-	cnss_pr_vdbg("Increased QMI send usage count to %d\n",
-		     pci_priv->qmi_send_usage_count);
+	cnss_pr_buf("Increased QMI send usage count to %d\n",
+		    pci_priv->qmi_send_usage_count);
 	mutex_unlock(&pci_priv->bus_lock);
 
 	return ret;
@@ -3404,10 +3431,11 @@ int cnss_pci_qmi_send_put(struct cnss_pci_data *pci_priv)
 	mutex_lock(&pci_priv->bus_lock);
 	if (pci_priv->qmi_send_usage_count)
 		pci_priv->qmi_send_usage_count--;
-	cnss_pr_vdbg("Decreased QMI send usage count to %d\n",
-		     pci_priv->qmi_send_usage_count);
+	cnss_pr_buf("Decreased QMI send usage count to %d\n",
+		    pci_priv->qmi_send_usage_count);
 	if (cnss_pci_get_auto_suspended(pci_priv) &&
-	    !pci_priv->qmi_send_usage_count)
+	    !pci_priv->qmi_send_usage_count &&
+	    !cnss_pcie_is_device_down(pci_priv))
 		ret = cnss_pci_suspend_bus(pci_priv);
 	mutex_unlock(&pci_priv->bus_lock);
 

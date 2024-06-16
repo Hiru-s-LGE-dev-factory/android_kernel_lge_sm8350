@@ -66,6 +66,9 @@ enum migratetype {
 #ifdef CONFIG_MEMORY_ISOLATION
 	MIGRATE_ISOLATE,	/* can't allocate from here */
 #endif
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	MIGRATE_HIGHORDER,
+#endif
 	MIGRATE_TYPES
 };
 
@@ -73,6 +76,7 @@ enum migratetype {
 extern const char * const migratetype_names[MIGRATE_TYPES];
 
 #ifdef CONFIG_CMA
+bool is_cma_pageblock(struct page *page);
 #  define is_migrate_cma(migratetype) unlikely((migratetype) == MIGRATE_CMA)
 #  define is_migrate_cma_page(_page) (get_pageblock_migratetype(_page) == MIGRATE_CMA)
 #  define get_cma_migrate_type() MIGRATE_CMA
@@ -214,6 +218,12 @@ enum zone_stat_item {
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
 	NR_FREE_CMA_PAGES,
+#ifdef CONFIG_HIGHATOMIC_WATERMARK
+	NR_FREE_HIGHATOMIC_PAGES,
+#endif
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	NR_FREE_HIGHORDER_PAGES,
+#endif
 	NR_VM_ZONE_STAT_ITEMS };
 
 enum node_stat_item {

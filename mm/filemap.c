@@ -42,6 +42,9 @@
 #include <linux/psi.h>
 #include <linux/ramfs.h>
 #include "internal.h"
+#ifdef CONFIG_LGE_SREADAHEAD
+#include "../fs/sreadahead_prof.h"
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
@@ -2518,6 +2521,17 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 	} else if (!page) {
 		/* No page in the page cache at all */
 		count_vm_event(PGMAJFAULT);
+		/* LGE_CHANGE_S
+		*
+		* Profile files related to pgmajfault during 1st booting
+		* in order to use the data as readahead args
+		*
+		* matia.kim@lge.com 20130612
+		*/
+#ifdef CONFIG_LGE_SREADAHEAD
+		sreadahead_prof(file, 0, 0);
+#endif
+		/* LGE_CHANGE_E */
 		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;
 		fpin = do_sync_mmap_readahead(vmf);

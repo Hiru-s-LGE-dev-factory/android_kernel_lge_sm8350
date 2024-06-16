@@ -490,7 +490,7 @@ msm_get_serial_number(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%u\n",
+	return snprintf(buf, PAGE_SIZE, "0x%08x\n",
 		socinfo_get_serial_number());
 }
 ATTR_DEFINE(serial_number);
@@ -660,6 +660,7 @@ static const struct soc_id soc_id[] = {
 	{ 458, "SDXLEMUR" },
 	{ 475, "YUPIK" },
 	{ 484, "SDXNIGHTJAR" },
+	{ 441, "SCUBA" },
 };
 
 static struct qcom_socinfo *qsocinfo;

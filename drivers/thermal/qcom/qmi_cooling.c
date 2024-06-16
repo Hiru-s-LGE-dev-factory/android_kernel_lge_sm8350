@@ -190,6 +190,11 @@ static int qmi_set_cur_state(struct thermal_cooling_device *cdev,
 
 	qmi_cdev->mtgn_state = state;
 
+#ifdef CONFIG_LGE_PM_DEBUG
+	pr_info_ratelimited("%s: cdev[%s] set state=%d\n",
+                         __func__, qmi_cdev->cdev_name, state);
+#endif
+
 	return ret;
 }
 

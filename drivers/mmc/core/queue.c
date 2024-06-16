@@ -103,6 +103,9 @@ static enum blk_eh_timer_return mmc_cqe_timed_out(struct request *req)
 	enum mmc_issue_type issue_type = mmc_issue_type(mq, req);
 	bool recovery_needed = false;
 
+#if defined(CONFIG_SDC_QTI)
+	host->err_stats[MMC_ERR_CMDQ_REQ_TIMEOUT]++;
+#endif
 	mmc_log_string(host,
 		"Request timed out! Active reqs: %d Req: %p Tag: %d\n",
 		mmc_cqe_qcnt(mq), req, req->tag);
@@ -420,7 +423,7 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 
 	init_waitqueue_head(&mq->wait);
 
-#if defined(CONFIG_SDC_QTI)
+#if defined(CONFIG_SDC_QTI) && defined(CONFIG_MMC_CQHCI_CRYPTO)
 	if (host->cqe_ops && host->cqe_ops->cqe_crypto_update_queue)
 		host->cqe_ops->cqe_crypto_update_queue(host, mq->queue);
 #endif
@@ -499,6 +502,15 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card)
 
 	mmc_setup_queue(mq, card);
 	mmc_crypto_setup_queue(host, mq->queue);
+
+#ifdef CONFIG_LFS_MM_BDI_STRICTLIMIT_DIRTY
+	if (mmc_card_sd(card)) {
+		mq->queue->backing_dev_info->capabilities |= BDI_CAP_STRICTLIMIT;
+		bdi_set_min_ratio(mq->queue->backing_dev_info, 0);
+		bdi_set_max_ratio(mq->queue->backing_dev_info, 10);
+	}
+#endif
+
 	return 0;
 
 free_tag_set:
@@ -526,6 +538,13 @@ void mmc_queue_resume(struct mmc_queue *mq)
 void mmc_cleanup_queue(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
+
+#ifdef CONFIG_LFS_MM_BDI_STRICTLIMIT_DIRTY
+	if (mq->card && mmc_card_sd(mq->card)) {
+		bdi_set_min_ratio(mq->queue->backing_dev_info, 0);
+		bdi_set_max_ratio(mq->queue->backing_dev_info, 100);
+	}
+#endif
 
 	/*
 	 * The legacy code handled the possibility of being suspended,

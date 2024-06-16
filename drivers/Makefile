@@ -186,3 +186,20 @@ obj-$(CONFIG_SIOX)		+= siox/
 obj-$(CONFIG_GNSS)		+= gnss/
 obj-$(CONFIG_INTERCONNECT)	+= interconnect/
 obj-$(CONFIG_COUNTER)		+= counter/
+obj-$(CONFIG_TSPDRV)        += tspdrv/
+
+# Lattice
+obj-$(CONFIG_LATTICE_ICE40_MOTOR)      += ice40/
+# Motor
+obj-$(CONFIG_LGE_ROLLING)              += motors/
+
+#TDMB
+obj-$(CONFIG_LGE_BROADCAST_TDMB) += broadcast/
+
+# ISDBT
+obj-$(CONFIG_LGE_BROADCAST_ISDBT_JAPAN) += broadcast/
+
+# Mobicore
+ifeq ($(CONFIG_TRUSTONIC_TEE),y)
+obj-$(CONFIG_TRUSTONIC_TEE) += gud/
+endif

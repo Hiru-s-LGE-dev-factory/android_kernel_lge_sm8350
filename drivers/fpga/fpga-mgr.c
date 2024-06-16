@@ -316,7 +316,13 @@ static int fpga_mgr_buf_load(struct fpga_manager *mgr,
  *
  * Return: 0 on success, negative error code otherwise.
  */
+#ifdef CONFIG_MACH_LGE 
+int fpga_mgr_firmware_load(struct fpga_manager *mgr,
+#else
 static int fpga_mgr_firmware_load(struct fpga_manager *mgr,
+#endif
+
+
 				  struct fpga_image_info *info,
 				  const char *image_name)
 {
@@ -324,6 +330,9 @@ static int fpga_mgr_firmware_load(struct fpga_manager *mgr,
 	const struct firmware *fw;
 	int ret;
 
+#ifdef CONFIG_MACH_LGE
+	char *fw_data_copy;
+#endif
 	dev_info(dev, "writing %s to %s\n", image_name, mgr->name);
 
 	mgr->state = FPGA_MGR_STATE_FIRMWARE_REQ;
@@ -335,13 +344,29 @@ static int fpga_mgr_firmware_load(struct fpga_manager *mgr,
 		return ret;
 	}
 
+#ifdef CONFIG_MACH_LGE
+	fw_data_copy = kmalloc(fw->size, GFP_KERNEL);
+	if(!fw_data_copy) {
+		dev_err(dev, "Failed to allocate fw_data_copy\n");
+		release_firmware(fw);
+		return -ENOMEM;
+	}
+	memcpy(fw_data_copy, fw->data, fw->size);
+	ret = fpga_mgr_buf_load(mgr, info, fw_data_copy, fw->size);
+#else
 	ret = fpga_mgr_buf_load(mgr, info, fw->data, fw->size);
+#endif
 
 	release_firmware(fw);
+#ifdef CONFIG_MACH_LGE
+	kfree(fw_data_copy);
+#endif
 
 	return ret;
 }
-
+#ifdef CONFIG_MACH_LGE
+EXPORT_SYMBOL_GPL(fpga_mgr_firmware_load);
+#endif
 /**
  * fpga_mgr_load - load FPGA from scatter/gather table, buffer, or firmware
  * @mgr:	fpga manager

@@ -41,6 +41,10 @@ enum pm_qos_flags_status {
 #define PM_QOS_FLAG_NO_POWER_OFF	(1 << 0)
 
 struct pm_qos_request {
+#ifdef CONFIG_LGE_PM_DEBUG
+	char name[WORKER_DESC_LEN];
+	//char desc[WORKER_DESC_LEN]; /* for debugging */
+#endif
 	struct plist_node node;
 	int pm_qos_class;
 	struct delayed_work work; /* for pm_qos_update_request_timeout */

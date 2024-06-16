@@ -22,6 +22,10 @@
 #include <linux/sched.h>
 #include <linux/clkdev.h>
 
+#ifdef CONFIG_PROC_FS
+#include <linux/proc_fs.h>
+#endif
+
 #include "clk.h"
 
 static DEFINE_SPINLOCK(enable_lock);
@@ -86,7 +90,7 @@ struct clk_core {
 	struct hlist_node	child_node;
 	struct hlist_head	clks;
 	unsigned int		notifier_count;
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 	struct dentry		*dentry;
 	struct hlist_node	debug_node;
 #endif
@@ -2953,7 +2957,7 @@ EXPORT_SYMBOL_GPL(clk_is_match);
 
 /***        debugfs support        ***/
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_PROC_FS)
 #include <linux/debugfs.h>
 
 static struct dentry *rootdir;
@@ -3455,9 +3459,10 @@ static u32 debug_suspend;
  */
 void clock_debug_print_enabled(void)
 {
+/*
 	if (likely(!debug_suspend))
 		return;
-
+*/
 	if (!mutex_trylock(&clk_debug_lock))
 		return;
 
@@ -3515,6 +3520,18 @@ static const struct file_operations clk_state_fops = {
 };
 #endif
 
+static int procfs_clk_summary_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, clk_summary_show, PDE_DATA(inode));
+}
+
+static const struct file_operations procfs_clk_summary_fops = {
+	.open		= procfs_clk_summary_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 /**
  * clk_debug_init - lazily populate the debugfs clk directory
  *
@@ -3532,6 +3549,9 @@ static int __init clk_debug_init(void)
 
 	debugfs_create_file("clk_summary", 0444, rootdir, &all_lists,
 			    &clk_summary_fops);
+#ifdef CONFIG_PROC_FS
+	proc_create_data("clk_summary", 0444, NULL, &procfs_clk_summary_fops, &all_lists);
+#endif
 	debugfs_create_file("clk_dump", 0444, rootdir, &all_lists,
 			    &clk_dump_fops);
 	debugfs_create_file("clk_orphan_summary", 0444, rootdir, &orphan_list,

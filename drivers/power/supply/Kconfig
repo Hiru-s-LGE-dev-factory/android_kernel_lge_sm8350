@@ -723,6 +723,29 @@ config CHARGER_WILCO
 	  information can be found in
 	  Documentation/ABI/testing/sysfs-class-power-wilco
 
+config USE_WIRELESS_CHARGING
+	tristate "IDT P9222 charger diver"
+	default y if CHARGER_IDTP9222_V2 || CHARGER_IDTP9222_V3
+	help
+	  Say Y here to use wireless charging for device
+
+config CHARGER_IDTP9222_V2
+	tristate "IDT P9222 charger diver"
+	depends on I2C && GPIOLIB
+	default n
+	help
+	  Say Y here to use idtp9222-2 charger IC for wireless charging.
+
+config CHARGER_IDTP9222_V3
+	tristate "IDT P9222 charger diver"
+	depends on I2C && GPIOLIB
+	default n
+	help
+	  Say Y here to use idtp9222-3 charger IC for wireless charging.
+
+# CONFIG_LGE_PM
+source "drivers/power/supply/lge/Kconfig"
+
 source "drivers/power/supply/qcom/Kconfig"
 
 endif # POWER_SUPPLY

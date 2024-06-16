@@ -213,12 +213,14 @@ static void diag_update_pid_and_serial_num(struct diag_context *ctxt)
 	struct usb_gadget_string_container *uc;
 	struct dload_struct local_diag_dload = { 0 };
 
+#ifndef CONFIG_LGE_USB_GADGET
 	/*
 	 * update pid and serial number to dload only if diag
 	 * interface is zeroth interface.
 	 */
 	if (intf_desc.bInterfaceNumber)
 		return;
+#endif
 
 	if (!diag_dload) {
 		pr_debug("%s: unable to update PID and serial_no\n", __func__);
@@ -248,9 +250,15 @@ static void diag_update_pid_and_serial_num(struct diag_context *ctxt)
 	}
 
 update_dload:
+#ifdef CONFIG_LGE_USB_GADGET
+	pr_info("LGE_USB : %s: dload:%pK pid:%x serial_num:%s\n",
+				__func__, diag_dload, local_diag_dload.pid,
+				local_diag_dload.serial_number);
+#else
 	pr_debug("%s: dload:%pK pid:%x serial_num:%s\n",
 				__func__, diag_dload, local_diag_dload.pid,
 				local_diag_dload.serial_number);
+#endif
 
 	memcpy_toio(diag_dload, &local_diag_dload, sizeof(local_diag_dload));
 }

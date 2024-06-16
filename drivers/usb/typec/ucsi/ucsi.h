@@ -251,6 +251,20 @@ struct ucsi_connector_status {
 #define UCSI_CONSTAT_PROVIDER_CAP_LIMIT(_p_)	(((_p_) & GENMASK(6, 3)) >> 3)
 #define   UCSI_CONSTAT_CAP_PWR_LOWERED		0
 #define   UCSI_CONSTAT_CAP_PWR_BUDGET_LIMIT	1
+
+#ifdef CONFIG_LGE_USB
+	u16 cc_status;
+#define UCSI_CONSTAT_PARTNER_CC1_STATUS(_p_)	((_p_) & GENMASK(2, 0))
+#define UCSI_CONSTAT_PARTNER_CC2_STATUS(_p_)	(((_p_) & GENMASK(5, 3)) >> 3)
+#define   UCSI_CONSTAT_PARTNER_CC_OPEN		0
+#define   UCSI_CONSTAT_PARTNER_CC_RP_DEFAULT	1
+#define   UCSI_CONSTAT_PARTNER_CC_RP_1P5A	2
+#define   UCSI_CONSTAT_PARTNER_CC_RP_3A		3
+#define   UCSI_CONSTAT_PARTNER_CC_RD		4
+#define   UCSI_CONSTAT_PARTNER_CC_RA		5
+#define UCSI_CONSTAT_VCONN_ENABLE		BIT(6)
+#define UCSI_CONSTAT_MOISTURE_DETECTED(_p_)	(((_p_) & GENMASK(8, 7)) >> 7)
+#endif
 } __packed;
 
 /* -------------------------------------------------------------------------- */

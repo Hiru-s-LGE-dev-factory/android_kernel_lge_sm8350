@@ -59,6 +59,7 @@ FINAL_DEFCONFIG_BLEND=""
 case "$REQUIRED_DEFCONFIG" in
 	${PLATFORM_NAME}-qgki-debug_defconfig )
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_DEBUG_FRAG"
+		FINAL_DEFCONFIG_BLEND+=" $LGE_MME_TEST_FLAG"
 		;&	# Intentional fallthrough
 	${PLATFORM_NAME}-qgki-consolidate_defconfig )
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_CONSOLIDATE_FRAG"

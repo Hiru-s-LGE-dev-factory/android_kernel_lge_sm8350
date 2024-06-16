@@ -289,6 +289,35 @@ static int spmi_glink_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_LGE_PM
+struct spmi_glink_dev *g_gd = NULL;
+int spmi_glink_get_regdump(u32 bus_id, u8 sid, u16 addr, u8 *buf)
+{
+	struct spmi_glink_dev *gd = g_gd;
+	struct spmi_glink_ctrl *gctrl = NULL;
+	int ret = -1, i;
+
+	if (!gd)
+		return ret;
+
+	for (i = 0; i < gd->bus_count; i++) {
+		if (gd->gctrl[i]->bus_id == bus_id) {
+			gctrl = gd->gctrl[i];
+			break;
+		}
+	}
+
+	if (!gctrl)
+		return ret;
+
+	mutex_lock(&gd->lock);
+	ret = spmi_glink_read_reg(gctrl, sid, addr, buf, SPMI_GLINK_MAX_READ_BYTES);
+	mutex_unlock(&gd->lock);
+
+	return ret;
+}
+#endif
+
 static int spmi_glink_probe(struct platform_device *pdev)
 {
 	struct spmi_glink_dev *gd;
@@ -368,6 +397,9 @@ static int spmi_glink_probe(struct platform_device *pdev)
 
 		gd->gctrl[i++] = gctrl;
 	}
+#ifdef CONFIG_LGE_PM
+	g_gd = gd;
+#endif
 
 	return 0;
 

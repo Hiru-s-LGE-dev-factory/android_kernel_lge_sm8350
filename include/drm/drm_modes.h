@@ -396,6 +396,9 @@ struct drm_display_mode {
 	 * This value is in Hz.
 	 */
 	int vrefresh;
+#if IS_ENABLED(CONFIG_LGE_PM_PRM)
+	int vrefresh_div;
+#endif
 
 	/**
 	 * @hsync:

@@ -14,6 +14,9 @@ enum votable_type {
 	VOTE_MIN,
 	VOTE_MAX,
 	VOTE_SET_ANY,
+#ifdef CONFIG_LGE_PM
+	VOTE_DUMMY,
+#endif
 	NUM_VOTABLE_TYPES,
 };
 
@@ -43,5 +46,18 @@ struct votable *create_votable(const char *name,
 void destroy_votable(struct votable *votable);
 void lock_votable(struct votable *votable);
 void unlock_votable(struct votable *votable);
+
+#ifdef CONFIG_LGE_PM
+enum priority_level {
+	PRIORITY_LOW,
+	PRIORITY_MID,
+	PRIORITY_HIGH,
+	PRIORITY_MAX,
+};
+
+int get_effective_priority_locked(struct votable *votable);
+int get_effective_priority(struct votable *votable);
+int vote_priority(struct votable *votable, const char *client_str, bool state, int val, int priority);
+#endif
 
 #endif /* __PMIC_VOTER_H */

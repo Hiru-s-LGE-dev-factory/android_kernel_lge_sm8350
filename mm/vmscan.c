@@ -2518,6 +2518,9 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	fraction[1] = fp;
 	denominator = ap + fp + 1;
 out:
+#ifdef CONFIG_SCAN_BALANCE_COUNT
+	count_vm_event(NR_SCAN_EQUAL+scan_balance);
+#endif
 	*lru_pages = 0;
 	for_each_evictable_lru(lru) {
 		int file = is_file_lru(lru);
@@ -3214,6 +3217,9 @@ static bool allow_direct_reclaim(pg_data_t *pgdat)
 
 		pfmemalloc_reserve += min_wmark_pages(zone);
 		free_pages += zone_page_state(zone, NR_FREE_PAGES);
+#ifdef CONFIG_MIGRATE_HIGHORDER
+		free_pages -= zone_page_state(zone, NR_FREE_HIGHORDER_PAGES);
+#endif
 	}
 
 	/* If there are no reserves (unexpected config) then do not throttle */

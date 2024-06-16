@@ -675,6 +675,10 @@ unsigned long vmalloc_to_pfn(const void *addr);
  * On nommu, vmalloc/vfree wrap through kmalloc/kfree directly, so there
  * is no special casing required.
  */
+
+#ifdef CONFIG_ENABLE_VMALLOC_SAVING
+extern bool is_vmalloc_addr(const void *x);
+#else
 static inline bool is_vmalloc_addr(const void *x)
 {
 #ifdef CONFIG_MMU
@@ -685,6 +689,7 @@ static inline bool is_vmalloc_addr(const void *x)
 	return false;
 #endif
 }
+#endif //CONFIG_ENABLE_VMALLOC_SAVING
 
 #ifndef is_ioremap_addr
 #define is_ioremap_addr(x) is_vmalloc_addr(x)
@@ -2744,6 +2749,7 @@ struct page *follow_page(struct vm_area_struct *vma, unsigned long address,
 #define FOLL_REMOTE	0x2000	/* we are working on non-current tsk/mm */
 #define FOLL_COW	0x4000	/* internal GUP flag */
 #define FOLL_ANON	0x8000	/* don't do file mappings */
+#define FOLL_CMA	0x80000 /* migrate if the page is from cma pageblock */
 #define FOLL_LONGTERM	0x10000	/* mapping lifetime is indefinite: see below */
 #define FOLL_SPLIT_PMD	0x20000	/* split huge pmd before returning */
 
@@ -2799,6 +2805,12 @@ static inline void kernel_poison_pages(struct page *page, int numpages,
 					int enable) { }
 #endif
 
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+long get_user_pages_foll_cma(struct task_struct *tsk, struct mm_struct *mm,
+		unsigned long start, unsigned long nr_pages,
+		int write, int force, struct page **pages,
+		struct vm_area_struct **vmas);
+#endif
 #ifdef CONFIG_INIT_ON_ALLOC_DEFAULT_ON
 DECLARE_STATIC_KEY_TRUE(init_on_alloc);
 #else

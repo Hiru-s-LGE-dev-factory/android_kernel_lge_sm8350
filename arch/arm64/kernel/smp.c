@@ -849,7 +849,11 @@ void arch_irq_work_raise(void)
 
 static DEFINE_RAW_SPINLOCK(stop_lock);
 
+#ifndef CONFIG_MACH_LGE
 static DEFINE_PER_CPU(struct pt_regs, regs_before_stop);
+#else
+DEFINE_PER_CPU(struct pt_regs, regs_before_stop);
+#endif
 
 static void local_cpu_stop(void)
 {

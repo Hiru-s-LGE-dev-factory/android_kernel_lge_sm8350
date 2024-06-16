@@ -2613,6 +2613,11 @@ static struct dst_entry *xfrm_bundle_create(struct xfrm_policy *policy,
 			dst1->output = dst_discard_out;
 		rcu_read_unlock();
 
+		/* 2018-03-16 gihong.jang@lge.com LGP_DATA_KERNEL_XFRM_FRAG_ESP [START]*/
+#ifdef CONFIG_XFRM_FRAG_ESP_BEFORE_TUNNEL_ENC
+		dst1->next = &xdst_prev->u.dst;
+#endif
+		/* 2018-03-16 gihong.jang@lge.com LGP_DATA_KERNEL_XFRM_FRAG_ESP [END]*/
 		xdst_prev = xdst;
 
 		header_len += xfrm[i]->props.header_len;

@@ -28,9 +28,9 @@ REQUIRED_DEFCONFIG=`echo $1 | sed "s/vendor\///g"`
 
 # We should be in the kernel root after the envsetup
 if [[  "${REQUIRED_DEFCONFIG}" != *"gki"* ]]; then
-	source ${SCRIPTS_ROOT}/envsetup.sh $PLATFORM_NAME generic_defconfig
+	source ${SCRIPTS_ROOT}/envsetup.sh $PLATFORM_NAME $2 $3 generic_defconfig
 else
-	source ${SCRIPTS_ROOT}/envsetup.sh $PLATFORM_NAME
+	source ${SCRIPTS_ROOT}/envsetup.sh $PLATFORM_NAME $2 $3
 fi
 
 KERN_MAKE_ARGS="ARCH=$ARCH \
@@ -57,12 +57,16 @@ FINAL_DEFCONFIG_BLEND=""
 
 case "$REQUIRED_DEFCONFIG" in
 	${PLATFORM_NAME}-qgki-debug_defconfig )
+		FINAL_DEFCONFIG_BLEND+=" $LGE_DEBUG_FRAG"
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_DEBUG_FRAG"
 		;&	# Intentional fallthrough
 	${PLATFORM_NAME}-qgki-consolidate_defconfig )
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_CONSOLIDATE_FRAG"
 		;&	# Intentional fallthrough
 	${PLATFORM_NAME}-qgki_defconfig )
+		FINAL_DEFCONFIG_BLEND+=" $LGE_QGKI_FRAG"
+		FINAL_DEFCONFIG_BLEND+=" $LGE_MME_TEST_FLAG"
+
 		# DEBUG_FS fragment.
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_DEBUG_FS_FRAG"
 
@@ -71,6 +75,7 @@ case "$REQUIRED_DEFCONFIG" in
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_GKI_ALLYES_FRAG "
 		;;
 	${PLATFORM_NAME}-gki_defconfig )
+		FINAL_DEFCONFIG_BLEND+=" $LGE_GKI_FRAG"
 		FINAL_DEFCONFIG_BLEND+=" $QCOM_GKI_FRAG "
 		;;
 	${PLATFORM_NAME}-debug_defconfig )

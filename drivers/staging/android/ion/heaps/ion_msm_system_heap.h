@@ -31,6 +31,17 @@ enum ion_kthread_type {
 	ION_MAX_NUM_KTHREADS
 };
 
+#ifdef CONFIG_MIGRATE_HIGHORDER
+#if defined(CONFIG_IOMMU_IO_PGTABLE_ARMV7S)
+static const unsigned int highorders[] = {8, 4};
+#else
+static const unsigned int highorders[] = {9, 4};
+#endif
+
+#define NUM_HIGHORDERS ARRAY_SIZE(highorders)
+#define MIN_HIGHORDER_SZ 65536
+#endif
+
 struct ion_msm_system_heap {
 	struct msm_ion_heap heap;
 	struct ion_msm_page_pool *uncached_pools[MAX_ORDER];
@@ -38,6 +49,11 @@ struct ion_msm_system_heap {
 	/* worker threads to refill the pool */
 	struct task_struct *kworker[ION_MAX_NUM_KTHREADS];
 	struct ion_msm_page_pool *secure_pools[VMID_LAST][MAX_ORDER];
+#ifdef CONFIG_MIGRATE_HIGHORDER
+    // must check this order size of pool
+    struct ion_msm_page_pool *highorder_uncached_pools[NUM_HIGHORDERS];
+    struct ion_msm_page_pool *highorder_cached_pools[NUM_HIGHORDERS];
+#endif
 	/* Prevents unnecessary page splitting */
 	struct mutex split_page_mutex;
 };

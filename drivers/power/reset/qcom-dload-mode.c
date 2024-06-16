@@ -16,6 +16,20 @@
 #include <linux/qcom_scm.h>
 #include <soc/qcom/minidump.h>
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include <soc/qcom/lge/lge_handle_panic.h>
+#endif
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+#include <asm/system_misc.h>
+#include <linux/input/qpnp-power-on.h>
+#define LGE_REBOOT_CMD_SIZE 32
+struct lge_poweroff_timeout_struct {
+	enum reboot_mode reboot_mode;
+	char reboot_cmd[LGE_REBOOT_CMD_SIZE];
+	struct hrtimer poweroff_timer;
+};
+#endif
+
 enum qcom_download_dest {
 	QCOM_DOWNLOAD_DEST_UNKNOWN = -1,
 	QCOM_DOWNLOAD_DEST_QPST = 0,
@@ -35,8 +49,13 @@ struct qcom_dload {
 
 #define QCOM_DOWNLOAD_BOTHDUMP (QCOM_DOWNLOAD_FULLDUMP | QCOM_DOWNLOAD_MINIDUMP)
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+static bool enable_dump = true;
+static bool ftm_crash_handler = false;
+#else
 static bool enable_dump =
 	IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE_DEFAULT);
+#endif
 static enum qcom_download_mode current_download_mode = QCOM_DOWNLOAD_NODUMP;
 static enum qcom_download_mode dump_mode = QCOM_DOWNLOAD_FULLDUMP;
 
@@ -247,6 +266,9 @@ static int qcom_dload_panic(struct notifier_block *this, unsigned long event,
 	poweroff->in_panic = true;
 	if (enable_dump)
 		msm_enable_dump_mode(true);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	lge_set_panic_reason();
+#endif
 	return NOTIFY_OK;
 }
 
@@ -262,10 +284,15 @@ static int qcom_dload_reboot(struct notifier_block *this, unsigned long event,
 		set_download_mode(QCOM_DOWNLOAD_NODUMP);
 
 	if (cmd) {
+#ifndef CONFIG_LGE_HANDLE_PANIC
 		if (!strcmp(cmd, "edl"))
 			set_download_mode(QCOM_DOWNLOAD_EDL);
 		else if (!strcmp(cmd, "qcom_dload"))
 			msm_enable_dump_mode(true);
+#else
+		if (!strcmp(cmd, "qcom_dload"))
+			msm_enable_dump_mode(true);
+#endif
 	}
 
 	if (current_download_mode != QCOM_DOWNLOAD_NODUMP)
@@ -273,6 +300,157 @@ static int qcom_dload_reboot(struct notifier_block *this, unsigned long event,
 
 	return NOTIFY_OK;
 }
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+int lge_get_ftm_crash_handler()
+{
+	return ftm_crash_handler ? 1 : 0;
+}
+EXPORT_SYMBOL(lge_get_ftm_crash_handler);
+
+int lge_get_download_mode()
+{
+	return enable_dump ? 1 : 0;
+}
+EXPORT_SYMBOL(lge_get_download_mode);
+
+int lge_set_download_mode(int val)
+{
+	if(val >> 1)
+		return -EINVAL;
+
+	enable_dump = val ? true : false;
+	if(enable_dump)
+		msm_enable_dump_mode(true);
+	return 0;
+}
+EXPORT_SYMBOL(lge_set_download_mode);
+
+extern int skip_free_rdump;
+static int __init lge_crash_handler(char *status)
+{
+	if (!strcmp(status, "on"))
+	{
+		enable_dump = true;
+		skip_free_rdump = 1;
+		ftm_crash_handler = true;
+	}
+	return 1;
+}
+__setup("lge.crash_handler=", lge_crash_handler);
+#endif
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+static enum hrtimer_restart lge_poweroff_timeout_handler(struct hrtimer *timer)
+{
+	/* Disable interrupts first */
+	local_irq_disable();
+	smp_send_stop();
+
+	pr_emerg("poweroff timeout expired. forced power off.\n");
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_get_ftm_crash_handler() == true) {
+		BUG();
+	}
+	else {
+		//FIXME copyed from do_msm_poweroff
+		pr_notice("Powering off the SoC (pid: %d, comm: %s)\n",
+				current->pid, current->comm);
+
+		set_download_mode(QCOM_DOWNLOAD_NODUMP);
+		qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
+
+		qcom_scm_deassert_ps_hold();
+
+		msleep(10000);
+		pr_err("Powering off has failed\n");
+
+	}
+#endif
+
+	return HRTIMER_NORESTART;
+}
+
+static enum hrtimer_restart lge_reboot_timeout_handler(struct hrtimer *timer)
+{
+	struct lge_poweroff_timeout_struct *reboot_timeout;
+
+	/* Disable interrupts first */
+	local_irq_disable();
+	smp_send_stop();
+
+	reboot_timeout = container_of(timer, struct lge_poweroff_timeout_struct, poweroff_timer);
+
+	pr_emerg("reboot timeout expired. forced reboot with cmd %s.\n", reboot_timeout->reboot_cmd);
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_get_download_mode() == true) {
+		BUG();
+	}
+	else {
+		//FIXME
+		qcom_dload_reboot(NULL, reboot_timeout->reboot_mode, reboot_timeout->reboot_cmd);
+	}
+#endif
+
+	return HRTIMER_NORESTART;
+}
+
+static void do_msm_poweroff_timeout(void)
+{
+	static struct lge_poweroff_timeout_struct lge_poweroff_timeout;
+	u64 timeout_ms = 60*1000;
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_get_ftm_crash_handler() == true) {
+		timeout_ms = 120*1000; // forbid false positive, for debugging
+	} else {
+		timeout_ms = 60*1000; // smooth action for customer
+	}
+#endif
+
+	if (lge_poweroff_timeout.poweroff_timer.function == NULL) {
+		hrtimer_init(&lge_poweroff_timeout.poweroff_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		lge_poweroff_timeout.poweroff_timer.function = lge_poweroff_timeout_handler;
+		hrtimer_start(&lge_poweroff_timeout.poweroff_timer, ms_to_ktime(timeout_ms), HRTIMER_MODE_REL);
+		pr_info("%s : %dsec \n", __func__, (timeout_ms / 1000));
+	}
+	else {
+		pr_info("duplicated %s, ignored\n", __func__);
+	}
+}
+
+static void do_msm_restart_timeout(enum reboot_mode reboot_mode, const char *cmd)
+{
+	static struct lge_poweroff_timeout_struct lge_reboot_timeout;
+	u64 timeout_ms = 15*1000;
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_get_ftm_crash_handler() == true) {
+		timeout_ms = 120*1000; // forbid false positive & for debugging
+	} else {
+		timeout_ms = 60*1000; // smooth action for customer
+	}
+#endif
+
+	if (lge_reboot_timeout.poweroff_timer.function == NULL) {
+		hrtimer_init(&lge_reboot_timeout.poweroff_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		lge_reboot_timeout.poweroff_timer.function = lge_reboot_timeout_handler;
+
+		if ((cmd != NULL && cmd[0] != '\0')) {
+			pr_info("%s %d %s : %dsec\n", __func__, reboot_mode, cmd, (timeout_ms / 1000));
+			strlcpy(lge_reboot_timeout.reboot_cmd, cmd, LGE_REBOOT_CMD_SIZE);
+		}
+		else {
+			pr_info("%s %d : %dsec\n", __func__, reboot_mode, (timeout_ms / 1000));
+		}
+		hrtimer_start(&lge_reboot_timeout.poweroff_timer, ms_to_ktime(timeout_ms), HRTIMER_MODE_REL);
+	}
+	else {
+		pr_info("duplicated %s, ignored\n", __func__);
+	}
+}
+#endif
 
 static void __iomem *map_prop_mem(const char *propname)
 {
@@ -316,6 +494,9 @@ static int qcom_dload_probe(struct platform_device *pdev)
 	struct qcom_dload *poweroff;
 	int ret;
 
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
+
 	poweroff = devm_kzalloc(&pdev->dev, sizeof(*poweroff), GFP_KERNEL);
 	if (!poweroff)
 		return -ENOMEM;
@@ -339,8 +520,15 @@ static int qcom_dload_probe(struct platform_device *pdev)
 	store_kaslr_offset();
 
 	msm_enable_dump_mode(enable_dump);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (!enable_dump) {
+		qcom_scm_disable_sdi();
+		lge_panic_handler_fb_cleanup();
+	}
+#else
 	if (!enable_dump)
 		qcom_scm_disable_sdi();
+#endif
 
 	poweroff->panic_nb.notifier_call = qcom_dload_panic;
 	poweroff->panic_nb.priority = INT_MAX;
@@ -350,6 +538,11 @@ static int qcom_dload_probe(struct platform_device *pdev)
 	poweroff->reboot_nb.notifier_call = qcom_dload_reboot;
 	poweroff->reboot_nb.priority = 255;
 	register_reboot_notifier(&poweroff->reboot_nb);
+
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+	pm_power_off_timeout = do_msm_poweroff_timeout;
+	arm_pm_restart_timeout = do_msm_restart_timeout;
+#endif
 
 	platform_set_drvdata(pdev, poweroff);
 

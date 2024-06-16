@@ -26,11 +26,34 @@ struct mmc_gpio {
 	u32 cd_debounce_delay_ms;
 };
 
+#ifdef CONFIG_LFS_MMC
+extern unsigned int is_damaged_sd;
+static int old_gpio = -1;
+#endif
+
+#ifdef CONFIG_LFS_MMC_TRAY_EVENT //support the TRAY uevent
+static int send_sd_slot_tray_state (struct mmc_host *host, int state) {
+	char event_string[20]; /* check the event string length */
+	char *envp[2] = { event_string, NULL };
+
+	if (state)
+		sprintf(event_string, "TRAY_STATE=INSERTED");
+	else
+		sprintf(event_string, "TRAY_STATE=EJECTED");
+
+	pr_info("%s: %s", __func__, envp[0]);
+	return kobject_uevent_env(&host->class_dev.kobj, KOBJ_CHANGE, envp);
+}
+#endif
+
 static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 {
 	/* Schedule a card detection after a debounce timeout */
 	struct mmc_host *host = dev_id;
 	struct mmc_gpio *ctx = host->slot.handler_priv;
+#ifdef CONFIG_LFS_MMC
+	int present = host->ops->get_cd(host);
+#endif
 
 #if defined(CONFIG_SDC_QTI)
 	/* New card is not corrupted */
@@ -38,7 +61,34 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 #endif
 
 	host->trigger_card_event = true;
+
+#ifdef CONFIG_LFS_MMC
+	/* LGE_CHANGE, BSP-FS
+	 * Insertion log of slot detection
+	*/
+	if(mmc_card_is_removable(host))
+		is_damaged_sd = 0;
+
+	pr_info("[LGE][MMC] %s: slot status change detected(%s), GPIO_ACTIVE_%s\n",
+		mmc_hostname(host), present ?
+		"INSERTED" : "EJECTED",
+		(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
+		"HIGH" : "LOW");
+#endif
+
+#ifdef CONFIG_LFS_MMC
+	pr_info("[LGE][MMC] %s: present = %d old_gpio = %d \n", mmc_hostname(host), present, old_gpio);
+	if(old_gpio == present)
+		return IRQ_HANDLED;
+	old_gpio = present;
+#endif
+
 	mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
+
+#ifdef CONFIG_LFS_MMC_TRAY_EVENT //support the TRAY uevent
+	if (send_sd_slot_tray_state(host, old_gpio) < 0)
+		pr_err("%s: send_sd_slot_tray_state was failed.\n", __func__);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -123,6 +173,11 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 			ctx->cd_label, host);
 		if (ret < 0)
 			irq = ret;
+#ifdef CONFIG_LFS_MMC_TRAY_EVENT //support the TRAY uevent
+		pr_debug("update initial TRAY status\n");
+		if (send_sd_slot_tray_state(host, mmc_gpio_get_cd(host)) < 0)
+			pr_err("%s: send_sd_slot_tray_state was failed.\n", __func__);
+#endif
 	}
 
 	host->slot.cd_irq = irq;

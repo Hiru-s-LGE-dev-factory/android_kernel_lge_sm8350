@@ -710,8 +710,10 @@ static void print_trailer(struct kmem_cache *s, struct page *page, u8 *p)
 
 static void slab_panic(const char *cause)
 {
-	if (IS_ENABLED(CONFIG_SLUB_DEBUG_PANIC_ON))
-		panic("%s\n", cause);
+	if (IS_ENABLED(CONFIG_SLUB_DEBUG_PANIC_ON)) {
+		printk("%s, %s\n", __func__, cause);
+		BUG();
+	}
 }
 
 void object_err(struct kmem_cache *s, struct page *page,
@@ -779,6 +781,9 @@ static int check_bytes_and_report(struct kmem_cache *s, struct page *page,
 		end--;
 
 	slab_bug(s, "%s overwritten", what);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	pr_err("INFO: physical address: 0x%llx, virtual address: 0x%p\n",(unsigned long long)virt_to_phys((void *)fault),fault);
+#endif
 	pr_err("INFO: 0x%p-0x%p. First byte 0x%x instead of 0x%x\n",
 					fault, end - 1, fault[0], value);
 	print_trailer(s, page, object);
@@ -875,8 +880,8 @@ static int slab_pad_check(struct kmem_cache *s, struct page *page)
 	while (end > fault && end[-1] == POISON_INUSE)
 		end--;
 
-	slab_err(s, page, "Padding overwritten. 0x%p-0x%p", fault, end - 1);
 	print_section(KERN_ERR, "Padding ", pad, remainder);
+	slab_err(s, page, "Padding overwritten. 0x%p-0x%p", fault, end - 1);
 
 	restore_bytes(s, "slab padding", POISON_INUSE, fault, end);
 	return 0;
@@ -6145,7 +6150,7 @@ static int alloc_trace_locations(struct seq_file *seq, struct kmem_cache *s,
 
 		seq_printf(seq,
 		"alloc_list: call_site=%pS count=%zu object_size=%zu slab_size=%zu slab_name=%s\n",
-			l->addr, l->count, s->object_size, s->size, s->name);
+			(void *)l->addr, l->count, s->object_size, s->size, s->name);
 #ifdef CONFIG_STACKTRACE
 		for (j = 0; j < TRACK_ADDRS_COUNT; j++)
 			if (l->addrs[j]) {
@@ -6323,16 +6328,9 @@ static int __init slab_sysfs_init(void)
 #ifdef CONFIG_SLUB_DEBUG
 	if (slub_debug) {
 		slab_debugfs_top = debugfs_create_dir("slab", NULL);
-		if (!slab_debugfs_top) {
-			pr_err("Couldn't create slab debugfs directory\n");
-			return -ENODEV;
-		}
-
-		if (!debugfs_create_file("alloc_trace", 0400, slab_debugfs_top,
-					NULL, &slab_debug_alloc_fops)) {
-			pr_err("Couldn't create slab/tests debugfs directory\n");
-			return -ENODEV;
-		}
+		if (!IS_ERR(slab_debugfs_top))
+			debugfs_create_file("alloc_trace", 0400, slab_debugfs_top,
+					NULL, &slab_debug_alloc_fops);
 	}
 #endif
 

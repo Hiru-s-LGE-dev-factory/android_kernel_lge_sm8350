@@ -914,4 +914,53 @@ config INPUT_STPMIC1_ONKEY
 	  To compile this driver as a module, choose M here: the
 	  module will be called stpmic1_onkey.
 
+config LGE_USE_BUTTONLESS_USSYS
+    bool "ULTRASENSE (Invisible Button) support"
+    depends on I2C
+    help
+      If your device is ULTRASENSE (Invisible Button), say Y
+
+config LGE_USE_BUTTONLESS_USSYS_HUB
+    bool "ULTRASENSE (Invisible Button) Hub(MCU) support"
+    depends on I2C
+    help
+      If your device is ULTRASENSE (Invisible Button) Hub(MCU), say Y
+
+source "drivers/input/misc/tcs3407/Kconfig"
+
+config SAR_ALMF04QFN_2_3CH_NIT
+	bool "SAR_ALMF04QFN_2_3CH_NIT support"
+	depends on I2C
+	help
+	  Support ATMF04_12QFN as an input device.
+
+config LGE_SAR_CONTROLLER_USB_DETECT
+	bool "LGE_SAR_CONTROLLER_USB_DETECT support"
+	depends on SAR_ALMF04QFN_2_3CH_NIT
+	help
+	  Support LGE_SAR_CONTROLLER_USB_DETECT feature
+
+config LGE_SAR_CONTROLLER_OTS_DETECT
+	bool "LGE_SAR_CONTROLLER_OTS_DETECT support"
+	depends on SAR_ALMF04QFN_2_3CH_NIT && LGE_SAR_CONTROLLER_USB_DETECT
+	help
+	  Support LGE_SAR_CONTROLLER_OTS_DETECT feature
+
+config INPUT_LGE_HALL_SENSOR
+	bool "INPUT_LGE_HALL_SENSOR support"
+	help
+	  Support hall sensor notifier
+
+config INPUT_HALL_SENSOR_AK09970
+	bool "INPUT_HALL_SENSOR_AK09970 support"
+	depends on I2C
+	help
+	  Support AK09970 as an input device
+
+config INPUT_HALL_SENSOR_AK09973
+	bool "INPUT_HALL_SENSOR_AK09973 support"
+	depends on I2C
+	help
+	  Support AK09973 as an input device
+
 endif

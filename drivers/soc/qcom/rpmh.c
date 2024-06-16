@@ -336,6 +336,9 @@ int rpmh_write(const struct device *dev, enum rpmh_state state,
 
 	ret = wait_for_completion_timeout(&compl, RPMH_TIMEOUT_MS);
 	if (!ret) {
+#ifdef CONFIG_LGE_HANDLE_PANIC_RPMH_TIMEOUT
+		pr_err("RPMH Timeout : %s\n", dev->kobj.name);
+#endif
 		rpmh_rsc_debug(ctrlr_to_drv(ctrlr), &compl);
 		return -ETIMEDOUT;
 	}
@@ -476,6 +479,9 @@ int rpmh_write_batch(const struct device *dev, enum rpmh_state state,
 	while (i--) {
 		time_left = wait_for_completion_timeout(&compls[i], time_left);
 		if (!time_left) {
+#ifdef CONFIG_LGE_HANDLE_PANIC_RPMH_TIMEOUT
+			pr_err("RPMH Timeout : %s\n", dev->kobj.name);
+#endif
 			/*
 			 * Better hope they never finish because they'll signal
 			 * the completion that we're going to free once

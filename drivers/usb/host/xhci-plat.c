@@ -221,6 +221,10 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (!hcd)
 		return -ENOMEM;
 
+#ifdef CONFIG_LGE_USB
+	hcd_to_bus(hcd)->skip_resume = true;
+#endif
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hcd->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hcd->regs)) {
@@ -284,6 +288,10 @@ static int xhci_plat_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto disable_clk;
 	}
+
+#ifdef CONFIG_LGE_USB
+	hcd_to_bus(xhci->shared_hcd)->skip_resume = true;
+#endif
 
 	/* imod_interval is the interrupt moderation value in nanoseconds. */
 	xhci->imod_interval = 40000;
@@ -436,10 +444,9 @@ static int xhci_plat_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	ret = xhci_resume(xhci, false);
-	pm_runtime_disable(dev);
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
+	ret = pm_runtime_resume(dev);
+	if (ret)
+		dev_err(dev, "failed to resume xhci-plat (%d)\n", ret);
 
 	return ret;
 }

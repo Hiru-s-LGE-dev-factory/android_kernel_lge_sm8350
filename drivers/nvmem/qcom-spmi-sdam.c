@@ -9,6 +9,9 @@
 #include <linux/of_platform.h>
 #include <linux/nvmem-provider.h>
 #include <linux/regmap.h>
+#ifdef CONFIG_LGE_PM_DEBUG
+#include <soc/qcom/watchdog.h>
+#endif
 
 #define SDAM_MEM_START			0x40
 #define REGISTER_MAP_ID			0x40
@@ -102,6 +105,9 @@ static int sdam_write(void *priv, unsigned int offset, void *val, size_t bytes)
 
 static int sdam_probe(struct platform_device *pdev)
 {
+#ifdef CONFIG_LGE_PM_DEBUG
+	unsigned int BOOT1_OFF_REASON, BOOT1_FAULT_REASON1 = 0;
+#endif
 	struct sdam_chip *sdam;
 	struct nvmem_device *nvmem;
 	struct nvmem_config *sdam_config;
@@ -134,6 +140,30 @@ static int sdam_probe(struct platform_device *pdev)
 		pr_err("Failed to read SDAM_SIZE rc=%d\n", rc);
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_LGE_PM_DEBUG
+	if (sdam->base == 0x7200)
+	{
+		rc = regmap_read(sdam->regmap, sdam->base + 0x45, &BOOT1_OFF_REASON);
+		if (rc < 0)
+		{
+			pr_err("Failed to read SDAM 0x7245");
+			return -EINVAL;
+		}
+		rc = regmap_read(sdam->regmap, sdam->base + 0x46, &BOOT1_FAULT_REASON1);
+		if (rc < 0)
+		{
+			pr_err("Failed to read SDAM 0x7246");
+			return -EINVAL;
+		}
+
+		if ((BOOT1_FAULT_REASON1 == 0x01 || BOOT1_FAULT_REASON1 == 0x04) && (BOOT1_OFF_REASON == 0x40)) //Only TRUE when BOOT1_OFF_REASON == 0x40 (i.e. POFF is FAULT_SEQ due to GP_FAULT0, 2. SDAM will be updated every PON cycle)
+		{
+			pr_err("watchdog trigger for GP_GAULT power-off debugging\n");
+			qcom_wdt_trigger_bite();
+		}
+	}
+#endif
 	sdam->size = val * 32;
 
 	sdam_config->dev = &pdev->dev;

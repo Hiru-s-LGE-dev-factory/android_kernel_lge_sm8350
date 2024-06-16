@@ -31,6 +31,9 @@
 #include <linux/irq_cpustat.h>
 #include <linux/kallsyms.h>
 #include <linux/kdebug.h>
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include <soc/qcom/lge/lge_handle_panic.h>
+#endif
 
 #define MASK_SIZE        32
 #define COMPARE_RET      -1
@@ -46,14 +49,38 @@ bool copy_early_boot_log = true;
 
 static struct msm_watchdog_data *wdog_data;
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+static void __iomem *msm_timer0_base;
+
+void __iomem *wdt_timer_get_timer0_base(void)
+{
+	return msm_timer0_base;
+}
+
+static void wdt_timer_set_timer0_base(void __iomem * iomem)
+{
+	msm_timer0_base = iomem;
+}
+#endif
+
 static void qcom_wdt_dump_cpu_alive_mask(struct msm_watchdog_data *wdog_dd)
 {
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	int cpu;
+#endif
 	static char alive_mask_buf[MASK_SIZE];
 
 	scnprintf(alive_mask_buf, MASK_SIZE, "%*pb1", cpumask_pr_args(
 				&wdog_dd->alive_mask));
 	dev_info(wdog_dd->dev, "cpu alive mask from last pet %s\n",
 				alive_mask_buf);
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	for_each_cpu(cpu, cpu_present_mask) {
+		printk(KERN_INFO "cpu%d alive time = %llu\n",
+				cpu, wdog_dd->alive_time[cpu]);
+	}
+#endif
 }
 
 #ifdef CONFIG_QCOM_IRQ_STAT
@@ -252,16 +279,16 @@ static void boot_log_init(void)
 	void *start;
 	unsigned int size;
 	struct md_region md_entry;
-	unsigned int *log_buf_size;
+	uint32_t log_buf_len;
 
-	log_buf_size = (unsigned int *)kallsyms_lookup_name("log_buf_len");
-	if (!log_buf_size) {
-		dev_err(wdog_data->dev, "log_buf_len symbol not found\n");
+	log_buf_len = log_buf_len_get();
+	if (!log_buf_len) {
+		dev_err(wdog_data->dev, "log_buf_len is zero\n");
 		goto out;
 	}
 
-	if (*log_buf_size >= BOOT_LOG_SIZE)
-		size = *log_buf_size;
+	if (log_buf_len >= BOOT_LOG_SIZE)
+		size = log_buf_len;
 	else
 		size = BOOT_LOG_SIZE;
 
@@ -617,6 +644,9 @@ static void qcom_wdt_keep_alive_response(void *info)
 
 	cpumask_set_cpu(cpu, &wdog_dd->alive_mask);
 	wdog_dd->ping_end[cpu] = sched_clock();
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	wdog_dd->alive_time[cpu] = sched_clock();
+#endif
 	/* Make sure alive mask is cleared and set in order */
 	smp_mb();
 }
@@ -697,6 +727,10 @@ static __ref int qcom_wdt_kthread(void *arg)
 		}
 
 		queue_irq_counts_work(&wdog_dd->irq_counts_work);
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+		pr_info("pet_watchdog [enabled : %d, jiffies : %lu, delay_time : %lu]\n", wdog_dd->enabled, jiffies, delay_time);
+#endif
 	}
 	return 0;
 }
@@ -771,6 +805,10 @@ void qcom_wdt_trigger_bite(void)
 		return;
 	compute_irq_stat(&wdog_data->irq_counts_work);
 	dev_err(wdog_data->dev, "Causing a QCOM Apps Watchdog bite!\n");
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_get_restart_reason() == (LGE_RB_MAGIC | LGE_ERR_TZ))
+		lge_set_restart_reason(LGE_RB_MAGIC | LGE_ERR_TZ | LGE_ERR_TZ_NON_SEC_WDT);
+#endif
 	wdog_data->ops->show_wdt_status(wdog_data);
 	wdog_data->ops->set_bite_time(1, wdog_data);
 	wdog_data->ops->reset_wdt(wdog_data);
@@ -788,6 +826,30 @@ void qcom_wdt_trigger_bite(void)
 
 }
 EXPORT_SYMBOL(qcom_wdt_trigger_bite);
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+/**
+ * qcom_wdt_trigger_bark - Executes a watchdog bark.
+ *
+ * Return: function will not return, to allow for the bark to occur
+ */
+void qcom_wdt_trigger_bark(void)
+{
+	if (!wdog_data)
+		return;
+	compute_irq_stat(&wdog_data->irq_counts_work);
+	dev_err(wdog_data->dev, "Causing a QCOM Apps Watchdog bark!\n");
+	wdog_data->ops->show_wdt_status(wdog_data);
+	wdog_data->ops->set_bark_time(1, wdog_data);
+	wdog_data->ops->reset_wdt(wdog_data);
+	/* Delay to make sure bark occurs */
+	mdelay(10000);
+
+	while (1)
+		udelay(1);
+}
+EXPORT_SYMBOL(qcom_wdt_trigger_bark);
+#endif
 
 static irqreturn_t qcom_wdt_bark_handler(int irq, void *dev_id)
 {
@@ -808,6 +870,9 @@ static irqreturn_t qcom_wdt_bark_handler(int irq, void *dev_id)
 	if (wdog_dd->freeze_in_progress)
 		dev_info(wdog_dd->dev, "Suspend in progress\n");
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	lge_set_restart_reason(LGE_RB_MAGIC | LGE_ERR_TZ | LGE_ERR_TZ_WDT_BARK);
+#endif
 	qcom_wdt_trigger_bite();
 
 	return IRQ_HANDLED;
@@ -864,14 +929,15 @@ static int qcom_wdt_init(struct msm_watchdog_data *wdog_dd,
 	} else {
 		ret = devm_request_irq(wdog_dd->dev, wdog_dd->bark_irq,
 				qcom_wdt_bark_handler,
-				IRQF_TRIGGER_RISING,
+				IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND,
 				"apps_wdog_bark", wdog_dd);
 		if (ret) {
 			dev_err(wdog_dd->dev, "failed to request bark irq: %d\n", ret);
 			return -EINVAL;
 		}
 	}
-
+	INIT_WORK(&wdog_dd->irq_counts_work, compute_irq_stat);
+	atomic_set(&wdog_dd->irq_counts_running, 0);
 	delay_time = msecs_to_jiffies(wdog_dd->pet_time);
 	wdog_dd->ops->set_bark_time(wdog_dd->bark_time, wdog_dd);
 	wdog_dd->ops->set_bite_time(wdog_dd->bark_time + 3 * 1000, wdog_dd);
@@ -1002,6 +1068,9 @@ int qcom_wdt_register(struct platform_device *pdev,
 
 	register_syscore_ops(&qcom_wdt_syscore_ops);
 
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	wdt_timer_set_timer0_base(wdog_dd->base);
+#endif
 	return 0;
 err:
 	return ret;

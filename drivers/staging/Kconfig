@@ -121,6 +121,9 @@ source "drivers/staging/isdn/Kconfig"
 source "drivers/staging/wusbcore/Kconfig"
 source "drivers/staging/uwb/Kconfig"
 
+# [FS] disable staging exfat driver
+# source "drivers/staging/exfat/Kconfig"
+
 source "drivers/staging/qlge/Kconfig"
 
 endif # STAGING

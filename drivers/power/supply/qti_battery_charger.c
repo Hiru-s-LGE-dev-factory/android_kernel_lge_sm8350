@@ -19,6 +19,9 @@
 #include <linux/power_supply.h>
 #include <linux/soc/qcom/pmic_glink.h>
 #include <linux/soc/qcom/battery_charger.h>
+#ifdef CONFIG_LGE_PM
+#include "lge/extension-qti.h"
+#endif
 
 #define MSG_OWNER_BC			32778
 #define MSG_TYPE_REQ_RESP		1
@@ -231,6 +234,9 @@ struct battery_chg_dev {
 	bool				block_tx;
 	bool				ship_mode_en;
 	bool				debug_battery_detected;
+#ifdef CONFIG_LGE_PM
+	struct ext_battery_chg *ext_bcdev;
+#endif
 	bool				wls_fw_update_reqd;
 	u32				wls_fw_version;
 	u16				wls_fw_crc;
@@ -1119,11 +1125,19 @@ static int battery_chg_init_psy(struct battery_chg_dev *bcdev)
 	struct power_supply_config psy_cfg = {};
 	int rc;
 
+#ifdef CONFIG_LGE_PM
+	extenstion_battery_chg_init_psy(bcdev);
+#endif
 	psy_cfg.drv_data = bcdev;
 	psy_cfg.of_node = bcdev->dev->of_node;
 	bcdev->psy_list[PSY_TYPE_BATTERY].psy =
+#ifdef CONFIG_LGE_PM
+		devm_power_supply_register(bcdev->dev, &batt_psy_desc_extension,
+						&psy_cfg);
+#else
 		devm_power_supply_register(bcdev->dev, &batt_psy_desc,
 						&psy_cfg);
+#endif
 	if (IS_ERR(bcdev->psy_list[PSY_TYPE_BATTERY].psy)) {
 		rc = PTR_ERR(bcdev->psy_list[PSY_TYPE_BATTERY].psy);
 		pr_err("Failed to register battery power supply, rc=%d\n", rc);
@@ -1131,7 +1145,11 @@ static int battery_chg_init_psy(struct battery_chg_dev *bcdev)
 	}
 
 	bcdev->psy_list[PSY_TYPE_USB].psy =
+#ifdef CONFIG_LGE_PM
+		devm_power_supply_register(bcdev->dev, &usb_psy_desc_extension, &psy_cfg);
+#else
 		devm_power_supply_register(bcdev->dev, &usb_psy_desc, &psy_cfg);
+#endif
 	if (IS_ERR(bcdev->psy_list[PSY_TYPE_USB].psy)) {
 		rc = PTR_ERR(bcdev->psy_list[PSY_TYPE_USB].psy);
 		pr_err("Failed to register USB power supply, rc=%d\n", rc);
@@ -1139,7 +1157,11 @@ static int battery_chg_init_psy(struct battery_chg_dev *bcdev)
 	}
 
 	bcdev->psy_list[PSY_TYPE_WLS].psy =
+#ifdef CONFIG_LGE_PM
+		devm_power_supply_register(bcdev->dev, &wls_psy_desc_extension, &psy_cfg);
+#else
 		devm_power_supply_register(bcdev->dev, &wls_psy_desc, &psy_cfg);
+#endif
 	if (IS_ERR(bcdev->psy_list[PSY_TYPE_WLS].psy)) {
 		rc = PTR_ERR(bcdev->psy_list[PSY_TYPE_WLS].psy);
 		pr_err("Failed to register wireless power supply, rc=%d\n", rc);
@@ -1705,6 +1727,14 @@ static struct attribute *battery_class_attrs[] = {
 	&class_attr_moisture_detection_en.attr,
 	&class_attr_wireless_boost_en.attr,
 	&class_attr_fake_soc.attr,
+#ifdef CONFIG_LGE_PM
+	&class_attr_get_regdump_addr.attr,
+	&class_attr_get_regdump_data.attr,
+	&class_attr_veneer_param_id.attr,
+	&class_attr_veneer_param_data.attr,
+	&class_attr_oem_opcode_id.attr,
+	&class_attr_oem_opcode_data.attr,
+#endif
 	&class_attr_wireless_fw_update.attr,
 	&class_attr_wireless_fw_force_update.attr,
 	&class_attr_wireless_fw_version.attr,
@@ -1884,7 +1914,11 @@ static int battery_chg_probe(struct platform_device *pdev)
 	init_completion(&bcdev->fw_buf_ack);
 	init_completion(&bcdev->fw_update_ack);
 	INIT_WORK(&bcdev->subsys_up_work, battery_chg_subsys_up_work);
+#ifdef CONFIG_LGE_PM
+	INIT_WORK(&bcdev->usb_type_work, extenstion_battery_chg_update_usb_type_work);
+#else
 	INIT_WORK(&bcdev->usb_type_work, battery_chg_update_usb_type_work);
+#endif
 	atomic_set(&bcdev->state, PMIC_GLINK_STATE_UP);
 	bcdev->dev = dev;
 
@@ -1917,6 +1951,9 @@ static int battery_chg_probe(struct platform_device *pdev)
 	bcdev->restrict_fcc_ua = DEFAULT_RESTRICT_FCC_UA;
 	platform_set_drvdata(pdev, bcdev);
 	bcdev->fake_soc = -EINVAL;
+#ifdef CONFIG_LGE_PM
+	extension_chg_early_probe(bcdev);
+#endif
 	rc = battery_chg_init_psy(bcdev);
 	if (rc < 0)
 		goto error;
@@ -1933,6 +1970,10 @@ static int battery_chg_probe(struct platform_device *pdev)
 	battery_chg_notify_enable(bcdev);
 	device_init_wakeup(bcdev->dev, true);
 	schedule_work(&bcdev->usb_type_work);
+
+#ifdef CONFIG_LGE_PM
+	extension_chg_probe(bcdev);
+#endif
 
 	return 0;
 error:
@@ -1966,14 +2007,31 @@ static const struct of_device_id battery_chg_match_table[] = {
 	{},
 };
 
+#ifdef CONFIG_LGE_PM
+static const struct dev_pm_ops battery_chg_pm_ops = {
+	.suspend	= battery_chg_suspend,
+};
+#endif
+
 static struct platform_driver battery_chg_driver = {
 	.driver = {
 		.name = "qti_battery_charger",
 		.of_match_table = battery_chg_match_table,
+#ifdef CONFIG_LGE_PM
+		.pm = &battery_chg_pm_ops,
+#endif
 	},
 	.probe = battery_chg_probe,
 	.remove = battery_chg_remove,
+#ifdef CONFIG_LGE_PM
+	.shutdown = battery_chg_shutdown,
+#endif
 };
+
+#ifdef CONFIG_LGE_PM
+#include "lge/extension-qti.c"
+#include "lge/extension-workarounds.c"
+#endif
 module_platform_driver(battery_chg_driver);
 
 MODULE_DESCRIPTION("QTI Glink battery charger driver");

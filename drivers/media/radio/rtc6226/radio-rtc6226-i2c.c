@@ -102,6 +102,30 @@ enum rtc6226_ctrl_id {
 
 /*static*/
 struct tasklet_struct my_tasklet;
+#ifdef CONFIG_MACH_LGE
+static int rtc6226_pinctrl_select(struct rtc6226_device *radio, bool on)
+{
+	struct pinctrl_state *pins_state;
+	int ret;
+
+	pins_state = on ? radio->gpio_state_active
+			: radio->gpio_state_suspend;
+
+	if (!IS_ERR_OR_NULL(pins_state)) {
+		ret = pinctrl_select_state(radio->fm_pinctrl, pins_state);
+		if (ret) {
+			pr_err("%s: cannot set pin state\n", __func__);
+			return ret;
+		}
+	} else {
+		pr_err("%s: not a valid %s pin state\n", __func__,
+				on ? "pmx_fm_active" : "pmx_fm_suspend");
+	}
+
+	return 0;
+}
+#endif
+
 /*
  * rtc6226_get_register - read register
  */
@@ -209,12 +233,14 @@ int rtc6226_vidioc_querycap(struct file *file, void *priv,
 	struct v4l2_capability *capability)
 {
 	FMDBG("%s enter\n", __func__);
-	strlcpy(capability->driver, DRIVER_NAME, sizeof(capability->driver));
-	strlcpy(capability->card, DRIVER_CARD, sizeof(capability->card));
+	strscpy(capability->driver, DRIVER_NAME, sizeof(capability->driver));
+	strscpy(capability->card, DRIVER_CARD, sizeof(capability->card));
+#ifndef CONFIG_MACH_LGE
 	capability->device_caps = V4L2_CAP_HW_FREQ_SEEK | V4L2_CAP_READWRITE |
 		V4L2_CAP_TUNER | V4L2_CAP_RADIO | V4L2_CAP_RDS_CAPTURE;
 	capability->capabilities = capability->device_caps |
 		V4L2_CAP_DEVICE_CAPS;
+#endif
 
 	return 0;
 }
@@ -226,7 +252,6 @@ static void rtc6226_i2c_interrupt_handler(struct rtc6226_device *radio)
 {
 	unsigned char regnr;
 	int retval = 0;
-	unsigned short current_chan;
 
 	FMDBG("%s enter\n", __func__);
 
@@ -236,73 +261,38 @@ static void rtc6226_i2c_interrupt_handler(struct rtc6226_device *radio)
 		FMDERR("%s read fail to STATUS\n", __func__);
 		goto end;
 	}
+	retval = rtc6226_get_register(radio, RSSI);
+	if (retval < 0){
+		pr_err("%s read fail to RSSI\n", __func__);
+		goto end;
+	}
 
 	if (radio->registers[STATUS] & STATUS_STD) {
-		FMDBG("%s : STATUS=0x%4.4hx\n", __func__,
-				radio->registers[STATUS]);
+		complete(&radio->completion);
+		pr_info("%s Seek/Tune Done\n",__func__);
+	}
 
-		retval = rtc6226_get_register(radio, RSSI);
-		if (retval < 0) {
-			FMDERR("%s read fail to RSSI\n", __func__);
-			goto end;
-		}
-		FMDBG("%s : RSSI=0x%4.4hx\n", __func__, radio->registers[RSSI]);
-			/* stop seeking : clear STD*/
-		radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_SEEK;
-		retval = rtc6226_set_register(radio, SEEKCFG1);
-		/*clear the status bit to allow another tune or seek*/
-		current_chan = radio->registers[CHANNEL] & CHANNEL_CSR0_CH;
-		radio->registers[CHANNEL] &= ~CHANNEL_CSR0_TUNE;
-		retval = rtc6226_set_register(radio, CHANNEL);
+	/* Update RDS registers */
+	for (regnr = 1; regnr < RDS_REGISTER_NUM; regnr++) {
+		retval = rtc6226_get_register(radio, STATUS + regnr);
 		if (retval < 0)
-			radio->registers[CHANNEL] = current_chan;
-		rtc6226_reset_rds_data(radio);
-		FMDBG("%s clear Seek/Tune bit\n", __func__);
-		if (radio->seek_tune_status == SEEK_PENDING) {
-			/* Enable the RDS as it was disabled before seek */
-			rtc6226_rds_on(radio);
-			FMDBG("posting RTC6226_EVT_SEEK_COMPLETE event\n");
-			rtc6226_q_event(radio, RTC6226_EVT_SEEK_COMPLETE);
-			/* post tune comp evt since seek results in a tune.*/
-			FMDBG("posting RICHWAVE_EVT_TUNE_SUCC event\n");
-			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-			radio->seek_tune_status = NO_SEEK_TUNE_PENDING;
-		} else if (radio->seek_tune_status == TUNE_PENDING) {
-			FMDBG("posting RICHWAVE_EVT_TUNE_SUCC event\n");
-			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-			radio->seek_tune_status = NO_SEEK_TUNE_PENDING;
-		} else if (radio->seek_tune_status == SCAN_PENDING) {
-			/* when scan is pending and STC int is set, signal
-			 * so that scan can proceed
-			 */
-			FMDBG("In %s, signalling scan thread\n", __func__);
-			complete(&radio->completion);
-		}
-		FMDBG("%s Seek/Tune done\n", __func__);
-	} else {
-		/* Check RDS data after tune/seek interrupt finished
-		 * Update RDS registers
-		 */
-		for (regnr = 1; regnr < RDS_REGISTER_NUM; regnr++) {
-			retval = rtc6226_get_register(radio, STATUS + regnr);
-			if (retval < 0)
-				goto end;
-		}
-		/* get rds blocks */
-		if ((radio->registers[STATUS] & STATUS_RDS_RDY) == 0) {
-			/* No RDS group ready, better luck next time */
-			FMDERR("%s No RDS group ready\n", __func__);
 			goto end;
-		} else {
-			/* avoid RDS interrupt lock disable_irq*/
-			if ((radio->registers[SYSCFG] &
-						SYSCFG_CSR0_RDS_EN) != 0) {
-				schedule_work(&radio->rds_worker);
-			}
+	}
+
+	/* get rds blocks */
+	if ((radio->registers[STATUS] & STATUS_RDS_RDY) == 0){
+		/* No RDS group ready, better luck next time */
+		pr_err("%s No RDS group ready\n",__func__);
+		goto end;
+	} else {
+		if ((radio->registers[SYSCFG] & SYSCFG_CSR0_RDS_EN) != 0) {
+			pr_info("%s start rds handler\n",__func__);
+			schedule_work(&radio->rds_worker);
 		}
 	}
 end:
 	FMDBG("%s exit :%d\n", __func__, retval);
+	return;
 }
 
 static irqreturn_t rtc6226_isr(int irq, void *dev_id)
@@ -537,6 +527,15 @@ int rtc6226_fops_open(struct file *file)
 	INIT_DELAYED_WORK(&radio->work, rtc6226_handler);
 	INIT_DELAYED_WORK(&radio->work_scan, rtc6226_scan);
 	INIT_WORK(&radio->rds_worker, rtc6226_rds_handler);
+#ifdef CONFIG_MACH_LGE
+	/* If pinctrl is supported, select active state */
+	if (radio->fm_pinctrl) {
+		retval = rtc6226_pinctrl_select(radio, true);
+		if (retval)
+			pr_err("%s: error setting active pin state\n",
+							__func__);
+	}
+#endif
 
 	/* Power up  Supply voltage to VDD and VIO */
 	retval = rtc6226_fm_power_cfg(radio, TURNING_ON);
@@ -587,7 +586,15 @@ static int rtc6226_parse_dt(struct device *dev,
 {
 	int rc = 0;
 	struct device_node *np = dev->of_node;
-
+#ifdef CONFIG_MACH_LGE
+	radio->lna_en = -1;
+	radio->lna_en = of_get_named_gpio(np, "rtc,lna-en-gpio", 0);
+	if (radio->lna_en > 0) {
+		rc = gpio_request(radio->lna_en, "lna_en");
+		gpio_direction_output(radio->lna_en, 0);
+		pr_info("LNA enable gpio : %d, ret: %d\n", radio->lna_en, rc);
+	}
+#endif
 	radio->int_gpio = of_get_named_gpio(np, "fmint-gpio", 0);
 	if (radio->int_gpio < 0) {
 		FMDERR("%s int-gpio not provided in device tree\n", __func__);
@@ -609,7 +616,6 @@ static int rtc6226_parse_dt(struct device *dev,
 		goto err_int_gpio;
 	}
 		/* Wait for the value to take effect on gpio. */
-	msleep(100);
 
 	return rc;
 
@@ -676,6 +682,79 @@ static int rtc6226_dt_parse_vreg_info(struct device *dev,
 	}
 	return ret;
 }
+
+static ssize_t rtc6226_show_seekdcth(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int cnt = 0;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct rtc6226_device *radio = i2c_get_clientdata(client);
+
+	rtc6226_get_register(radio, AUDIOCFG);
+	cnt += sprintf(buf + cnt, ": seekdcth %d", radio->registers[AUDIOCFG] & CSR_FM_IF_EST_TH);
+	cnt += sprintf(buf + cnt, "\n");
+	return cnt;
+}
+
+static ssize_t rtc6226_store_seekdcth(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t cnt)
+{
+	unsigned int val = 0;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct rtc6226_device *radio = i2c_get_clientdata(client);
+
+	val = simple_strtoul(buf, NULL, 10);
+	pr_info("%s val:%d\n", __func__,val);
+	radio->registers[AUDIOCFG] &= ~CSR_FM_IF_EST_TH;
+	radio->registers[AUDIOCFG] |= val;
+	rtc6226_set_register(radio, AUDIOCFG);
+
+	return cnt;
+}
+
+static DEVICE_ATTR(seekdcth, 0660,
+		rtc6226_show_seekdcth, rtc6226_store_seekdcth);
+
+static ssize_t rtc6226_show_seekspiketh(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int cnt = 0;
+	int value = 0;
+	int ret;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct rtc6226_device *radio = i2c_get_clientdata(client);
+
+
+	ret = rtc6226_get_register(radio, SEEKCFG3);
+	pr_info("%s ret:%d\n", __func__, ret);
+	value = ((radio->registers[SEEKCFG3] & CSR_SEEKING_NOISE_TH) >> 9);
+	pr_info("%s value:%d\n", __func__, value);
+	cnt += sprintf(buf + cnt, ": seekspiketh %d", value);
+	cnt += sprintf(buf + cnt, "\n");
+	return cnt;
+}
+
+static ssize_t rtc6226_store_seekspiketh(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t cnt)
+{
+	unsigned int val = 0;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct rtc6226_device *radio = i2c_get_clientdata(client);
+	int ret;
+
+	val = simple_strtoul(buf, NULL, 10);
+	pr_info("%s val:%d\n", __func__,val);
+	radio->registers[SEEKCFG3] &= ~CSR_SEEKING_NOISE_TH;
+	radio->registers[SEEKCFG3] |= (val << 9);
+	ret = rtc6226_set_register(radio, SEEKCFG3);
+	pr_info("%s ret:%d\n", __func__,ret);
+	return cnt;
+}
+
+static DEVICE_ATTR(seekspiketh, 0660,
+		rtc6226_show_seekspiketh, rtc6226_store_seekspiketh);
 
 /*
  * rtc6226_i2c_probe - probe for the device
@@ -809,8 +888,10 @@ static int rtc6226_i2c_probe(struct i2c_client *client,
 
 	radio->videodev.v4l2_dev = v4l2_dev;
 	radio->videodev.ioctl_ops = &rtc6226_ioctl_ops;
-	radio->videodev.device_caps = V4L2_CAP_HW_FREQ_SEEK | V4L2_CAP_READWRITE
-		| V4L2_CAP_TUNER | V4L2_CAP_RADIO | V4L2_CAP_RDS_CAPTURE;
+#ifdef CONFIG_MACH_LGE
+	radio->videodev.device_caps = V4L2_CAP_HW_FREQ_SEEK | V4L2_CAP_READWRITE |
+		V4L2_CAP_TUNER | V4L2_CAP_RADIO | V4L2_CAP_RDS_CAPTURE;
+#endif
 	video_set_drvdata(&radio->videodev, radio);
 
 	/* rds buffer allocation */
@@ -873,6 +954,17 @@ static int rtc6226_i2c_probe(struct i2c_client *client,
 	}
 
 	i2c_set_clientdata(client, radio);		/* move from below */
+
+	retval = device_create_file(&client->dev, &dev_attr_seekdcth);
+	if (retval < 0) {
+		dev_err(&client->dev, "create sysfs seekdcth file --> failed");
+	}
+
+	retval = device_create_file(&client->dev, &dev_attr_seekspiketh);
+	if (retval < 0) {
+		dev_err(&client->dev, "create sysfs seekspiketh file --> failed");
+	}
+
 	FMDBG("%s exit\n", __func__);
 	return 0;
 

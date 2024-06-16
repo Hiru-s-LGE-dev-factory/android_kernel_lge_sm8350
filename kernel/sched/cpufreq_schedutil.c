@@ -584,6 +584,9 @@ static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
 	unsigned long cpu_util = sg_cpu->util;
 	bool is_hiload;
 	unsigned long pl = sg_cpu->walt_load.pl;
+#ifdef CONFIG_SCHED_CAS
+	struct rq *rq = cpu_rq(sg_cpu->cpu);
+#endif
 
 	if (use_pelt())
 		return;
@@ -601,7 +604,12 @@ static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
 	if (is_hiload && nl >= mult_frac(cpu_util, NL_RATIO, 100))
 		*util = *max;
 
-	if (sg_policy->tunables->pl) {
+#ifdef CONFIG_SCHED_CAS
+	if(rq->uclamp[UCLAMP_MAX].value == 1024 && sg_policy->tunables->pl)
+#else
+	if (sg_policy->tunables->pl)
+#endif
+	{
 		if (conservative_pl())
 			pl = mult_frac(pl, TARGET_LOAD, 100);
 		*util = max(*util, pl);

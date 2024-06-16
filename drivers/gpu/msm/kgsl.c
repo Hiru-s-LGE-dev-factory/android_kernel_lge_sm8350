@@ -235,15 +235,6 @@ const char *kgsl_context_type(int type)
 	return "ANY";
 }
 
-/* Scheduled by kgsl_mem_entry_put_deferred() */
-static void _deferred_put(struct work_struct *work)
-{
-	struct kgsl_mem_entry *entry =
-		container_of(work, struct kgsl_mem_entry, work);
-
-	kgsl_mem_entry_put(entry);
-}
-
 static struct kgsl_mem_entry *kgsl_mem_entry_create(void)
 {
 	struct kgsl_mem_entry *entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -327,16 +318,9 @@ static void kgsl_destroy_ion(struct kgsl_dma_buf_meta *meta)
 }
 #endif
 
-void
-kgsl_mem_entry_destroy(struct kref *kref)
+static void mem_entry_destroy(struct kgsl_mem_entry *entry)
 {
-	struct kgsl_mem_entry *entry = container_of(kref,
-						    struct kgsl_mem_entry,
-						    refcount);
 	unsigned int memtype;
-
-	if (entry == NULL)
-		return;
 
 	/* pull out the memtype before the flags get cleared */
 	memtype = kgsl_memdesc_usermem_type(&entry->memdesc);
@@ -386,6 +370,31 @@ kgsl_mem_entry_destroy(struct kref *kref)
 	}
 
 	kfree(entry);
+}
+
+static void _deferred_destroy(struct kthread_work *work)
+{
+	struct kgsl_mem_entry *entry =
+		container_of(work, struct kgsl_mem_entry, mem_work);
+
+	mem_entry_destroy(entry);
+}
+
+void kgsl_mem_entry_destroy(struct kref *kref)
+{
+	struct kgsl_mem_entry *entry =
+		container_of(kref, struct kgsl_mem_entry, refcount);
+
+	mem_entry_destroy(entry);
+}
+
+void kgsl_mem_entry_destroy_deferred(struct kref *kref)
+{
+	struct kgsl_mem_entry *entry =
+		container_of(kref, struct kgsl_mem_entry, refcount);
+
+	kthread_init_work(&entry->mem_work, _deferred_destroy);
+	kthread_queue_work(kgsl_driver.mem_worker, &entry->mem_work);
 }
 
 /* Allocate a IOVA for memory objects that don't use SVM */
@@ -902,7 +911,7 @@ static void process_release_memory(struct kgsl_process_private *private)
 		if (!entry->pending_free) {
 			entry->pending_free = 1;
 			spin_unlock(&private->mem_lock);
-			kgsl_mem_entry_put(entry);
+			kgsl_mem_entry_put_deferred(entry);
 		} else {
 			spin_unlock(&private->mem_lock);
 		}
@@ -2134,7 +2143,7 @@ long kgsl_ioctl_sharedmem_free(struct kgsl_device_private *dev_priv,
 		return -EINVAL;
 
 	ret = gpumem_free_entry(entry);
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 
 	return ret;
 }
@@ -2152,7 +2161,7 @@ long kgsl_ioctl_gpumem_free_id(struct kgsl_device_private *dev_priv,
 		return -EINVAL;
 
 	ret = gpumem_free_entry(entry);
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 
 	return ret;
 }
@@ -2196,8 +2205,7 @@ static bool gpuobj_free_fence_func(void *priv)
 			entry->memdesc.gpuaddr, entry->memdesc.size,
 			entry->memdesc.flags);
 
-	INIT_WORK(&entry->work, _deferred_put);
-	queue_work(kgsl_driver.mem_workqueue, &entry->work);
+	kgsl_mem_entry_put_deferred(entry);
 	return true;
 }
 
@@ -2262,7 +2270,7 @@ long kgsl_ioctl_gpuobj_free(struct kgsl_device_private *dev_priv,
 	else
 		ret = -EINVAL;
 
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 	return ret;
 }
 
@@ -2292,7 +2300,7 @@ long kgsl_ioctl_cmdstream_freememontimestamp_ctxtid(
 	ret = gpumem_free_entry_on_timestamp(dev_priv->device, entry,
 		context, param->timestamp);
 
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 	kgsl_context_put(context);
 
 	return ret;
@@ -3404,8 +3412,10 @@ struct kgsl_mem_entry *gpumem_alloc_entry(
 	flags = kgsl_filter_cachemode(flags);
 
 	entry = kgsl_mem_entry_create();
-	if (entry == NULL)
+	if (entry == NULL){
+		printk("## gpumem_alloc_entry - kgsl_mem_entry_create failed");
 		return ERR_PTR(-ENOMEM);
+	}
 
 	if (IS_ENABLED(CONFIG_QCOM_KGSL_IOCOHERENCY_DEFAULT) &&
 		kgsl_cachemode_is_cached(flags))
@@ -3413,11 +3423,14 @@ struct kgsl_mem_entry *gpumem_alloc_entry(
 
 	ret = kgsl_allocate_user(dev_priv->device, &entry->memdesc,
 		size, flags, 0);
-	if (ret != 0)
+	if (ret != 0){
+		printk("## gpumem_alloc_entry - kgsl_allocate_user failed");
 		goto err;
+	}
 
 	ret = kgsl_mem_entry_attach_process(dev_priv->device, private, entry);
 	if (ret != 0) {
+		printk("## gpumem_alloc_entry - kgsl_mem_entry_attach_process failed");
 		kgsl_sharedmem_free(&entry->memdesc);
 		goto err;
 	}
@@ -3464,8 +3477,10 @@ long kgsl_ioctl_gpuobj_alloc(struct kgsl_device_private *dev_priv,
 
 	entry = gpumem_alloc_entry(dev_priv, param->size, param->flags);
 
-	if (IS_ERR(entry))
+	if (IS_ERR(entry)){
+		printk("## kgsl_ioctl_gpuobj_alloc error=%ld",PTR_ERR(entry));
 		return PTR_ERR(entry);
+	}
 
 	copy_metadata(entry, param->metadata, param->metadata_len);
 
@@ -3730,7 +3745,7 @@ kgsl_gpumem_vm_close(struct vm_area_struct *vma)
 	entry->memdesc.useraddr = 0;
 	atomic64_sub(entry->memdesc.mapsize, &entry->priv->gpumem_mapped);
 	entry->memdesc.mapsize = 0;
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_put_deferred(entry);
 }
 
 static const struct vm_operations_struct kgsl_gpumem_vm_ops = {
@@ -4355,6 +4370,8 @@ void kgsl_core_exit(void)
 		kgsl_driver.class = NULL;
 	}
 
+	kthread_destroy_worker(kgsl_driver.mem_worker);
+
 	kgsl_drawobjs_cache_exit();
 
 	kfree(memfree.list);
@@ -4435,8 +4452,12 @@ int __init kgsl_core_init(void)
 	kgsl_driver.workqueue = alloc_workqueue("kgsl-workqueue",
 		WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_SYSFS, 0);
 
-	kgsl_driver.mem_workqueue = alloc_workqueue("kgsl-mementry",
-		WQ_UNBOUND | WQ_MEM_RECLAIM, 0);
+	kgsl_driver.mem_worker = kthread_create_worker(0, "kgsl_mem_worker");
+
+	if (IS_ERR(kgsl_driver.mem_worker)) {
+		pr_err("kgsl: unable to start kgsl mem worker\n");
+		goto err;
+	}
 
 	kthread_init_worker(&kgsl_driver.worker);
 

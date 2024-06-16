@@ -1126,6 +1126,12 @@ const char * const vmstat_text[] = {
 	"nr_zspages",
 #endif
 	"nr_free_cma",
+#ifdef CONFIG_HIGHATOMIC_WATERMARK
+	"nr_free_highatomic",
+#endif
+#ifdef CONFIG_MIGRATE_HIGHORDER
+	"nr_free_highorder",
+#endif
 
 	/* enum numa_stat_item counters */
 #ifdef CONFIG_NUMA
@@ -1300,11 +1306,17 @@ const char * const vmstat_text[] = {
 	"swap_ra",
 	"swap_ra_hit",
 #endif
+#ifdef CONFIG_SCAN_BALANCE_COUNT
+	"nr_scan_equal",
+	"nr_scan_fract",
+	"nr_scan_anon",
+	"nr_scan_file",
+#endif
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	"speculative_pgfault_anon",
 	"speculative_pgfault_file",
 #endif
-#endif /* CONFIG_VM_EVENT_COUNTERS */
+#endif /* CONFIG_VM_EVENTS_COUNTERS */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA */
 
