@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <net/ip.h>
@@ -2281,6 +2281,12 @@ static const struct ipa_ep_configuration ipa3_ep_mapping
 			IPA_DPS_HPS_SEQ_TYPE_INVALID,
 			QMB_MASTER_SELECT_DDR,
 			{ 12, 4, 4, 4, IPA_EE_AP, GSI_ESCAPE_BUF_ONLY} },
+	[IPA_4_2][IPA_CLIENT_ODL_DPL_CONS]	= {
+			true, IPA_v4_2_GROUP_UL_DL,
+			false,
+			IPA_DPS_HPS_SEQ_TYPE_INVALID,
+			QMB_MASTER_SELECT_DDR,
+			{ 13, 10, 6, 6, IPA_EE_AP, GSI_ESCAPE_BUF_ONLY} },
 	[IPA_4_2][IPA_CLIENT_APPS_LAN_CONS]       = {
 			true, IPA_v4_2_GROUP_UL_DL,
 			false,
@@ -2305,12 +2311,6 @@ static const struct ipa_ep_configuration ipa3_ep_mapping
 			IPA_DPS_HPS_SEQ_TYPE_INVALID,
 			QMB_MASTER_SELECT_DDR,
 			{ 10, 2, 6, 6, IPA_EE_Q6,  GSI_ESCAPE_BUF_ONLY} },
-	[IPA_4_2][IPA_CLIENT_Q6_LTE_WIFI_AGGR_CONS] = {
-			true, IPA_v4_2_GROUP_UL_DL,
-			false,
-			IPA_DPS_HPS_SEQ_TYPE_INVALID,
-			QMB_MASTER_SELECT_DDR,
-			{ 13, 4, 6, 6, IPA_EE_Q6, GSI_ESCAPE_BUF_ONLY} },
 	[IPA_4_2][IPA_CLIENT_ETHERNET_CONS] = {
 			true, IPA_v4_2_GROUP_UL_DL,
 			false,
@@ -3261,6 +3261,12 @@ static const struct ipa_ep_configuration ipa3_ep_mapping
 			{ 16, 7, 9, 9, IPA_EE_Q6, GSI_ESCAPE_BUF_ONLY, 0 } },
 
 	/* IPA_4_11 */
+	[IPA_4_11][IPA_CLIENT_WLAN2_PROD] 	         = {
+			true, IPA_v4_11_GROUP_UL_DL,
+			true,
+			IPA_DPS_HPS_SEQ_TYPE_2ND_PKT_PROCESS_PASS_NO_DEC_UCP,
+			QMB_MASTER_SELECT_DDR,
+			{ 3, 3, 8, 16, IPA_EE_AP, GSI_SMART_PRE_FETCH, 3 } },
 	[IPA_4_11][IPA_CLIENT_WLAN1_PROD]		   = {
 			true, IPA_v4_11_GROUP_UL_DL,
 			true,
@@ -3346,6 +3352,12 @@ static const struct ipa_ep_configuration ipa3_ep_mapping
 			IPA_DPS_HPS_SEQ_TYPE_2ND_PKT_PROCESS_PASS_NO_DEC_UCP,
 			QMB_MASTER_SELECT_DDR,
 			{ 1, 1, 8, 16, IPA_EE_AP } },
+	[IPA_4_11][IPA_CLIENT_WLAN2_CONS]          = {
+			true, IPA_v4_11_GROUP_UL_DL,
+			false,
+			IPA_DPS_HPS_SEQ_TYPE_INVALID,
+			QMB_MASTER_SELECT_DDR,
+			{ 18, 9, 8, 14, IPA_EE_AP, GSI_SMART_PRE_FETCH, 3 } },
 	[IPA_4_11][IPA_CLIENT_WLAN1_CONS]		   = {
 			true, IPA_v4_11_GROUP_UL_DL,
 			false,
@@ -3977,19 +3989,19 @@ static struct ipa3_mem_partition ipa_4_11_mem_part = {
         .apps_hdr_size                  = 0x200,
         .apps_hdr_size_ddr              = 0x800,
         .modem_hdr_proc_ctx_ofst        = 0xad0,
-        .modem_hdr_proc_ctx_size        = 0x200,
-        .apps_hdr_proc_ctx_ofst         = 0xcd0,
+        .modem_hdr_proc_ctx_size        = 0xAC0,
+        .apps_hdr_proc_ctx_ofst         = 0x1590,
         .apps_hdr_proc_ctx_size         = 0x200,
         .apps_hdr_proc_ctx_size_ddr     = 0x0,
-        .nat_tbl_ofst                   = 0xee0,
-        .nat_tbl_size                   = 0xd00,
-        .pdn_config_ofst                = 0x1be8,
+        .nat_tbl_ofst                   = 0x17A0,
+        .nat_tbl_size                   = 0x500,
+        .pdn_config_ofst                = 0x1CA8,
         .pdn_config_size                = 0x50,
-        .stats_quota_q6_ofst            = 0x1c40,
+        .stats_quota_q6_ofst            = 0x1D00,
         .stats_quota_q6_size            = 0x30,
-        .stats_quota_ap_ofst            = 0x1c70,
+        .stats_quota_ap_ofst            = 0x1D30,
         .stats_quota_ap_size            = 0x48,
-        .stats_tethering_ofst           = 0x1cb8,
+        .stats_tethering_ofst           = 0x1D78,
         .stats_tethering_size           = 0x238,
         .stats_flt_v4_ofst              = 0,
         .stats_flt_v4_size              = 0,
@@ -3999,29 +4011,29 @@ static struct ipa3_mem_partition ipa_4_11_mem_part = {
         .stats_rt_v4_size               = 0,
         .stats_rt_v6_ofst               = 0,
         .stats_rt_v6_size               = 0,
-        .stats_fnr_ofst                 = 0x1ef0,
-        .stats_fnr_size                 = 0x0,
-        .stats_drop_ofst                = 0x1ef0,
+        .stats_fnr_ofst                 = 0x1FB0,
+        .stats_fnr_size                 = 0x800,
+        .stats_drop_ofst                = 0x27B0,
         .stats_drop_size                = 0x20,
         .modem_comp_decomp_ofst         = 0x0,
         .modem_comp_decomp_size         = 0x0,
-        .modem_ofst                     = 0x1f18,
-        .modem_size                     = 0x100c,
-        .apps_v4_flt_hash_ofst  = 0x1f18,
+        .modem_ofst                     = 0x27D8,
+        .modem_size                     = 0x800,
+        .apps_v4_flt_hash_ofst  = 0x27B0,
         .apps_v4_flt_hash_size  = 0x0,
-        .apps_v4_flt_nhash_ofst = 0x1f18,
+        .apps_v4_flt_nhash_ofst = 0x27B0,
         .apps_v4_flt_nhash_size = 0x0,
-        .apps_v6_flt_hash_ofst  = 0x1f18,
+        .apps_v6_flt_hash_ofst  = 0x27B0,
         .apps_v6_flt_hash_size  = 0x0,
-        .apps_v6_flt_nhash_ofst = 0x1f18,
+        .apps_v6_flt_nhash_ofst = 0x27B0,
         .apps_v6_flt_nhash_size = 0x0,
-        .apps_v4_rt_hash_ofst   = 0x1f18,
+        .apps_v4_rt_hash_ofst   = 0x27B0,
         .apps_v4_rt_hash_size   = 0x0,
-        .apps_v4_rt_nhash_ofst  = 0x1f18,
+        .apps_v4_rt_nhash_ofst  = 0x27B0,
         .apps_v4_rt_nhash_size  = 0x0,
-        .apps_v6_rt_hash_ofst   = 0x1f18,
+        .apps_v6_rt_hash_ofst   = 0x27B0,
         .apps_v6_rt_hash_size   = 0x0,
-        .apps_v6_rt_nhash_ofst  = 0x1f18,
+        .apps_v6_rt_nhash_ofst  = 0x27B0,
         .apps_v6_rt_nhash_size  = 0x0,
         .uc_descriptor_ram_ofst = 0x3000,
         .uc_descriptor_ram_size = 0x0000,
@@ -5792,6 +5804,10 @@ int ipa3_cfg_ep_hdr_ext(u32 clnt_hdl,
  */
 int ipa3_cfg_ep_ctrl(u32 clnt_hdl, const struct ipa_ep_cfg_ctrl *ep_ctrl)
 {
+	int code = 0, result;
+	struct ipa3_ep_context *ep;
+	bool primary_secondry;
+
 	if (clnt_hdl >= ipa3_ctx->ipa_num_pipes || ep_ctrl == NULL) {
 		IPAERR("bad parm, clnt_hdl = %d\n", clnt_hdl);
 		return -EINVAL;
@@ -5812,6 +5828,33 @@ int ipa3_cfg_ep_ctrl(u32 clnt_hdl, const struct ipa_ep_cfg_ctrl *ep_ctrl)
 		clnt_hdl,
 		ep_ctrl->ipa_ep_suspend,
 		ep_ctrl->ipa_ep_delay);
+	ep = &ipa3_ctx->ep[clnt_hdl];
+	if (ipa3_ctx->ipa_endp_delay_wa_v2 &&
+		IPA_CLIENT_IS_PROD(ep->client)) {
+
+		IPADBG("Configuring flow control for pipe = %d\n", clnt_hdl);
+		/* Configure enhanced flow control instead of delay
+		 * Q6 controlled AP pipes(USB PROD and MHI_PROD) configuring the
+		 * secondary flow control.
+		 * AP controlled pipe configuring primary flow control.
+		 */
+		if (ep->client == IPA_CLIENT_USB_PROD ||
+			ep->client == IPA_CLIENT_MHI_PROD)
+			primary_secondry = true;
+		else
+			primary_secondry = false;
+
+		result = gsi_flow_control_ee(ep->gsi_chan_hdl, 0,
+				ep_ctrl->ipa_ep_delay, primary_secondry, &code);
+		if (result == GSI_STATUS_SUCCESS) {
+			IPADBG("flow control sussess gsi ch %d with code %d\n",
+					ep->gsi_chan_hdl, code);
+		} else {
+			IPADBG("failed to flow control gsi ch %d code %d\n",
+					ep->gsi_chan_hdl, code);
+		}
+		return 0;
+	}
 
 	ipahal_write_reg_n_fields(IPA_ENDP_INIT_CTRL_n, clnt_hdl, ep_ctrl);
 
@@ -6289,8 +6332,8 @@ int ipa3_cfg_ep_holb(u32 clnt_hdl, const struct ipa_ep_cfg_holb *ep_holb)
 	ipa3_ctx->ep[clnt_hdl].holb.en = IPA_HOLB_TMR_EN;
 	ipahal_write_reg_n_fields(IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 		clnt_hdl, ep_holb);
-	/* IPA4.5 issue requires HOLB_EN to be written twice */
-	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5)
+	/* For targets > IPA_4.0 issue requires HOLB_EN to be written twice */
+	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_0)
 		ipahal_write_reg_n_fields(IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 			clnt_hdl, ep_holb);
 
@@ -7077,16 +7120,13 @@ int ipa3_alloc_counter_id(struct ipa_ioc_flt_rt_counter_alloc *header)
 {
 	int i, unused_cnt, unused_max, unused_start_id;
 	struct ipa_ioc_flt_rt_counter_alloc *counter;
-
-	idr_preload(GFP_KERNEL);
-	spin_lock(&ipa3_ctx->flt_rt_counters.hdl_lock);
-
 	counter = kmem_cache_zalloc(ipa3_ctx->fnr_stats_cache, GFP_KERNEL);
 	if (!counter) {
 		IPAERR_RL("failed to alloc fnr stats counter object\n");
-		spin_unlock(&ipa3_ctx->flt_rt_counters.hdl_lock);
 		return -ENOMEM;
 	}
+	idr_preload(GFP_KERNEL);
+	spin_lock(&ipa3_ctx->flt_rt_counters.hdl_lock);
 	memcpy(counter, header, sizeof(struct ipa_ioc_flt_rt_counter_alloc));
 	/* allocate hw counters */
 	counter->hw_counter.start_id = 0;
@@ -8618,6 +8658,7 @@ static int __ipa3_stop_gsi_channel(u32 clnt_hdl)
 	}
 
 	IPAERR("Failed  to stop GSI channel with retries\n");
+	ipa_assert();
 	return res;
 }
 
@@ -8740,6 +8781,8 @@ void ipa3_force_close_coal(void)
 int ipa3_suspend_apps_pipes(bool suspend)
 {
 	int res;
+	struct ipa_ep_cfg_holb holb_cfg;
+	int odl_ep_idx;
 
 	/* As per HPG first need start/stop coalescing channel
 	 * then default one. Coalescing client number was greater then
@@ -8760,6 +8803,24 @@ int ipa3_suspend_apps_pipes(bool suspend)
 	res = _ipa_suspend_resume_pipe(IPA_CLIENT_ODL_DPL_CONS, suspend);
 	if (res == -EAGAIN)
 		goto undo_odl_cons;
+
+	odl_ep_idx = ipa3_get_ep_mapping(IPA_CLIENT_ODL_DPL_CONS);
+	if (odl_ep_idx != IPA_EP_NOT_ALLOCATED && ipa3_ctx->ep[odl_ep_idx].valid) {
+		memset(&holb_cfg, 0, sizeof(holb_cfg));
+		if (suspend)
+			holb_cfg.en = 0;
+		else
+			holb_cfg.en = 1;
+
+		ipahal_write_reg_n_fields(IPA_ENDP_INIT_HOL_BLOCK_EN_n,
+				odl_ep_idx, &holb_cfg);
+		/* IPA4.5 issue requires HOLB_EN to be written twice */
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5 && holb_cfg.en)
+			ipahal_write_reg_n_fields(
+					IPA_ENDP_INIT_HOL_BLOCK_EN_n,
+					odl_ep_idx, &holb_cfg);
+
+	}
 
 	res = _ipa_suspend_resume_pipe(IPA_CLIENT_APPS_WAN_LOW_LAT_CONS,
 		suspend);
