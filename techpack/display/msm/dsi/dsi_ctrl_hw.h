@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _DSI_CTRL_HW_H_
@@ -642,6 +643,12 @@ struct dsi_ctrl_hw_ops {
 	void (*clear_interrupt_status)(struct dsi_ctrl_hw *ctrl, u32 ints);
 
 	/**
+	 * poll_slave_dma_status()- API to poll slave DMA status
+	 * @ctrl:                 Pointer to the controller host hardware.
+	 */
+	u32 (*poll_slave_dma_status)(struct dsi_ctrl_hw *ctrl);
+
+	/**
 	 * enable_status_interrupts() - enable the specified interrupts
 	 * @ctrl:          Pointer to the controller host hardware.
 	 * @ints:          List of interrupts to be enabled.
@@ -858,6 +865,15 @@ struct dsi_ctrl_hw_ops {
 	 * @cfg:	Common configuration parameters.
 	 */
 	void (*reset_trig_ctrl)(struct dsi_ctrl_hw *ctrl,
+			struct dsi_host_common_cfg *cfg);
+
+	/**
+	 * hw.ops.init_cmddma_trig_ctrl() - Initialize the default trigger used
+	 *                             for command mode DMA path.
+	 * @ctrl:	Pointer to the controller host hardware.
+	 * @cfg:	Common configuration parameters.
+	 */
+	void (*init_cmddma_trig_ctrl)(struct dsi_ctrl_hw *ctrl,
 			struct dsi_host_common_cfg *cfg);
 
 	/**
