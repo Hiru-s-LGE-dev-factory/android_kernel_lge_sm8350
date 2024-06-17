@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -165,6 +166,11 @@ int cam_mem_mgr_init(void)
 	int bitmap_size;
 
 	memset(tbl.bufq, 0, sizeof(tbl.bufq));
+
+	if (cam_smmu_need_force_alloc_cached(&tbl.force_cache_allocs)) {
+		CAM_ERR(CAM_MEM, "Error in getting force cache alloc flag");
+		return -EINVAL;
+	}
 
 	bitmap_size = BITS_TO_LONGS(CAM_MEM_BUFQ_MAX) * sizeof(long);
 	tbl.bitmap = kzalloc(bitmap_size, GFP_KERNEL);
@@ -415,6 +421,9 @@ static int cam_mem_util_get_dma_buf(size_t len,
 		return -EINVAL;
 	}
 
+	if (tbl.force_cache_allocs && (!(flags & ION_FLAG_SECURE)))
+		flags |= ION_FLAG_CACHED;
+
 	*buf = ion_alloc(len, heap_id_mask, flags);
 	if (IS_ERR_OR_NULL(*buf))
 		return -ENOMEM;
@@ -441,6 +450,9 @@ static int cam_mem_util_get_dma_buf_fd(size_t len,
 
 	if (tbl.alloc_profile_enable)
 		CAM_GET_TIMESTAMP(ts1);
+
+	if (tbl.force_cache_allocs && (!(flags & ION_FLAG_SECURE)))
+		flags |= ION_FLAG_CACHED;
 
 	*buf = ion_alloc(len, heap_id_mask, flags);
 	if (IS_ERR_OR_NULL(*buf))
@@ -565,7 +577,7 @@ static int cam_mem_util_check_map_flags(struct cam_mem_mgr_map_cmd *cmd)
 static int cam_mem_util_map_hw_va(uint32_t flags,
 	int32_t *mmu_hdls,
 	int32_t num_hdls,
-	int fd,
+	int fd, struct dma_buf *dmabuf,
 	dma_addr_t *hw_vaddr,
 	size_t *len,
 	enum cam_smmu_region_id region,
@@ -594,7 +606,8 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 				fd,
 				dir,
 				hw_vaddr,
-				len);
+				len,
+				dmabuf);
 
 			if (rc < 0) {
 				CAM_ERR(CAM_MEM,
@@ -612,7 +625,8 @@ static int cam_mem_util_map_hw_va(uint32_t flags,
 				(dma_addr_t *)hw_vaddr,
 				len,
 				region,
-				is_internal);
+				is_internal,
+				dmabuf);
 
 			if (rc < 0) {
 				CAM_ERR(CAM_MEM,
@@ -704,6 +718,7 @@ int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd)
 			cmd->mmu_hdls,
 			cmd->num_hdl,
 			fd,
+			dmabuf,
 			&hw_vaddr,
 			&len,
 			region,
@@ -747,7 +762,7 @@ int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd)
 	tbl.bufq[idx].kmdvaddr = kvaddr;
 	tbl.bufq[idx].vaddr = hw_vaddr;
 	tbl.bufq[idx].dma_buf = dmabuf;
-	tbl.bufq[idx].len = cmd->len;
+	tbl.bufq[idx].len = len;
 	tbl.bufq[idx].num_hdl = cmd->num_hdl;
 	memcpy(tbl.bufq[idx].hdls, cmd->mmu_hdls,
 		sizeof(int32_t) * cmd->num_hdl);
@@ -844,6 +859,7 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd)
 			cmd->mmu_hdls,
 			cmd->num_hdl,
 			cmd->fd,
+			dmabuf,
 			&hw_vaddr,
 			&len,
 			CAM_SMMU_REGION_IO,
@@ -1097,8 +1113,6 @@ static int cam_mem_util_unmap(int32_t idx,
 		if (cam_mem_util_unmap_hw_va(idx, region, client))
 			CAM_ERR(CAM_MEM, "Failed, dmabuf=%pK",
 				tbl.bufq[idx].dma_buf);
-		if (client == CAM_SMMU_MAPPING_KERNEL)
-			tbl.bufq[idx].dma_buf = NULL;
 	}
 
 	mutex_lock(&tbl.m_lock);
@@ -1114,8 +1128,7 @@ static int cam_mem_util_unmap(int32_t idx,
 		tbl.bufq[idx].is_imported,
 		tbl.bufq[idx].dma_buf);
 
-	if (tbl.bufq[idx].dma_buf)
-		dma_buf_put(tbl.bufq[idx].dma_buf);
+	dma_buf_put(tbl.bufq[idx].dma_buf);
 
 	tbl.bufq[idx].fd = -1;
 	tbl.bufq[idx].dma_buf = NULL;
