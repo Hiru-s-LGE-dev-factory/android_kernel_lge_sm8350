@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -204,13 +204,15 @@ static int set_cpu_min_freq(const char *buf, const struct kernel_param *kp)
 	for (i = 0; i < ntokens; i += 2) {
 		if (sscanf(cp, "%u:%u", &cpu, &val) != 2)
 			return -EINVAL;
-		if (cpu > (num_present_cpus() - 1))
-			return -EINVAL;
+		if (cpu >= nr_cpu_ids)
+			break;
 
-		i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
+		if (cpu_possible(cpu)) {
+			i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
 
-		i_cpu_stats->min = val;
-		cpumask_set_cpu(cpu, limit_mask_min);
+			i_cpu_stats->min = val;
+			cpumask_set_cpu(cpu, limit_mask_min);
+		}
 
 		cp = strnchr(cp, strlen(cp), ' ');
 		cp++;
@@ -295,13 +297,15 @@ static int set_cpu_max_freq(const char *buf, const struct kernel_param *kp)
 	for (i = 0; i < ntokens; i += 2) {
 		if (sscanf(cp, "%u:%u", &cpu, &val) != 2)
 			return -EINVAL;
-		if (cpu > (num_present_cpus() - 1))
-			return -EINVAL;
+		if (cpu >= nr_cpu_ids)
+			break;
 
-		i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
+		if (cpu_possible(cpu)) {
+			i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
 
-		i_cpu_stats->max = val;
-		cpumask_set_cpu(cpu, limit_mask_max);
+			i_cpu_stats->max = val;
+			cpumask_set_cpu(cpu, limit_mask_max);
+		}
 
 		cp = strnchr(cp, strlen(cp), ' ');
 		cp++;
@@ -512,7 +516,7 @@ static void free_pmu_counters(unsigned int cpu)
 static int init_pmu_counter(void)
 {
 	int cpu;
-	unsigned long cpu_capacity[NR_CPUS];
+	unsigned long cpu_capacity[NR_CPUS] = {0};
 	unsigned long min_cpu_capacity = ULONG_MAX;
 	int ret = 0;
 
@@ -560,10 +564,12 @@ static inline void msm_perf_read_event(struct event_data *event)
 	}
 
 	if (!per_cpu(cpu_is_idle, event->pevent->cpu) &&
-				!per_cpu(cpu_is_hp, event->pevent->cpu))
+				!per_cpu(cpu_is_hp, event->pevent->cpu)) {
 		total = perf_event_read_value(event->pevent, &enabled, &running);
-	else
+		event->cached_total_count = total;
+	} else {
 		total = event->cached_total_count;
+	}
 
 	ev_count = total - event->prev_count;
 	event->prev_count = total;
@@ -814,7 +820,7 @@ static int msm_perf_core_ctl_notify(struct notifier_block *nb,
 					void *data)
 {
 	static unsigned int tld, nrb, i;
-	static unsigned int top_ld[CLUSTER_MAX], curr_cp[CLUSTER_MAX];
+	static unsigned int top_ld[CLUSTER_MAX] = {0}, curr_cp[CLUSTER_MAX] = {0};
 	static DECLARE_WORK(sysfs_notify_work, nr_notify_userspace);
 	struct core_ctl_notif_data *d = data;
 	int cluster = 0;
@@ -986,7 +992,7 @@ module_param_cb(plh_log_level, &param_ops_plh_log_level, &plh_log_level, 0644);
 static int init_splh_notif(const char *buf)
 {
 	int i, j, ret;
-	u16 tmp[SPLH_INIT_IPC_FREQ_TBL_PARAMS];
+	u16 tmp[SPLH_INIT_IPC_FREQ_TBL_PARAMS] = {0};
 	u16 *ptmp = tmp, ntokens, nfps, n_ipc_freq_pair, tmp_valid_len = 0;
 	const char *cp, *cp1;
 	struct scmi_plh_vendor_ops *ops;
@@ -1009,6 +1015,8 @@ static int init_splh_notif(const char *buf)
 		cp = strnchr(cp, strlen(cp), ':');	/* skip INIT */
 		cp++;
 		cp = strnchr(cp, strlen(cp), ':');	/* skip nfps */
+		if (!cp)
+			return -EINVAL;
 
 		*ptmp++ = nfps;		/* nfps is first cmd param */
 		tmp_valid_len++;
@@ -1035,6 +1043,9 @@ static int init_splh_notif(const char *buf)
 			ptmp++;		/* increment after storing FPS val */
 			tmp_valid_len++;
 			cp1 = strnchr(cp1, strlen(cp1), ','); /* move to ,ipc */
+			if (!cp1)
+				return -EINVAL;
+
 			for (j = 0; j < 2 * n_ipc_freq_pair; j++) {
 				if (sscanf(cp1, ",%hu", ptmp) != 1)
 					return -EINVAL;
@@ -1042,12 +1053,20 @@ static int init_splh_notif(const char *buf)
 				ptmp++;	/* increment after storing ipc or freq */
 				tmp_valid_len++;
 				cp1++;
-				if (j != (2 * n_ipc_freq_pair - 1))
+				if (j != (2 * n_ipc_freq_pair - 1)) {
 					cp1 = strnchr(cp1, strlen(cp1), ','); /* move to next */
+					if (!cp1)
+						return -EINVAL;
+
+				}
 			}
 
-			if (i != (nfps - 1))
+			if (i != (nfps - 1)) {
 				cp1 = strnchr(cp1, strlen(cp1), ':'); /* move to next FPS val */
+				if (!cp1)
+					return -EINVAL;
+
+			}
 
 		}
 	} else {

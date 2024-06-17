@@ -440,124 +440,142 @@ void rtc6226_scan(struct work_struct *work)
 	struct kfifo *data_b;
 	int len = 0;
 	u32 next_freq_khz;
+	u8 factor;
 	int retval = 0;
-	int check_108bounday = 0;
+	int i, rssi;
 
 	FMDBG("%s enter\n", __func__);
 
 	radio = container_of(work, struct rtc6226_device, work_scan.work);
-	radio->seek_tune_status = SEEK_PENDING;
 
 	retval = rtc6226_get_freq(radio, &current_freq_khz);
-	if(retval < 0){
-		pr_err("%s fail to get freq\n",__func__);
+	if (retval < 0) {
+		FMDERR("%s fail to get freq\n", __func__);
 		goto seek_tune_fail;
 	}
-	pr_info("%s current freq %d\n", __func__, current_freq_khz/16);
+	FMDBG("%s current freq %d\n", __func__, current_freq_khz);
+		/* tune to lowest freq of the band */
+	radio->seek_tune_status = SCAN_PENDING;
+	retval = rtc6226_set_freq(radio,
+		radio->recv_conf.band_low_limit * TUNE_STEP_SIZE);
+	if (retval < 0)
+		goto seek_tune_fail;
+	/* wait for tune to complete. */
+	if (!wait_for_completion_timeout(&radio->completion,
+				msecs_to_jiffies(TUNE_TIMEOUT_MSEC))) {
+		FMDERR("In %s, didn't receive STC for tune\n", __func__);
+		rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+		return;
+	}
 
-	while(1) {
-		if (radio->is_search_cancelled == true) {
-			pr_err("%s: scan cancelled\n", __func__);
+	while (1) {
+		if (radio->is_search_cancelled) {
+			FMDERR("%s: scan cancelled\n", __func__);
 			if (radio->g_search_mode == SCAN_FOR_STRONG)
 				goto seek_tune_fail;
 			else
 				goto seek_cancelled;
 			goto seek_cancelled;
 		} else if (radio->mode != FM_RECV) {
-			pr_err("%s: FM is not in proper state\n", __func__);
-			return ;
+			FMDERR("%s: FM is not in proper state\n", __func__);
+			rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+			return;
 		}
 
-		if (!check_108bounday) {
-			retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_DISABLE);
-			if (retval < 0) {
-				pr_err("%s seek fail %d\n", __func__, retval);
-				goto seek_tune_fail;
-			}
-
-		#if 1 // print seek fail
-			pr_info("%s : STATUS=0x%4.4hx\n", __func__,
-	                radio->registers[STATUS]);
-		#endif
+		retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_DISABLE);
+		if (retval < 0) {
+			FMDERR("%s seek fail %d\n", __func__, retval);
+			goto seek_tune_fail;
 		}
-
-		if ((radio->registers[STATUS] & STATUS_SF) || check_108bounday) {
-			pr_err("%s band limit reached. Seek one more.\n",__func__);
-			seek_timeout = 1000;
-			retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_ENABLE);
-			seek_timeout = SEEK_TIME_OUT_VALUE;
-			if (retval < 0) {
-				pr_err("%s seek fail %d\n", __func__, retval);
-				goto seek_tune_fail;
-			}
-			retval = rtc6226_get_freq(radio, &next_freq_khz);
-			if(retval < 0){
-				pr_err("%s fail to get freq\n",__func__);
-				goto seek_tune_fail;
-			}
-			pr_info("%s next freq %d\n", __func__, next_freq_khz/16);
-			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-			break;
-		}
+			/* wait for seek to complete */
+		if (!wait_for_completion_timeout(&radio->completion,
+					msecs_to_jiffies(SEEK_TIMEOUT_MSEC))) {
+			FMDERR("%s:timeout didn't receive STC for seek\n",
+						__func__);
+			rtc6226_get_all_registers(radio);
+			for (i = 0; i < 16; i++)
+				FMDBG("%s registers[%d]:%x\n", __func__, i,
+					radio->registers[i]);
+			/* FM is not correct state or scan is cancelled */
+			rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+			return;
+		} else
+			FMDERR("%s: received STC for seek\n", __func__);
 
 		retval = rtc6226_get_freq(radio, &next_freq_khz);
-		if(retval < 0){
-			pr_err("%s fail to get freq\n",__func__);
+		if (retval < 0) {
+			FMDERR("%s fail to get freq\n", __func__);
 			goto seek_tune_fail;
 		}
-
+		FMDBG("%s next freq %d\n", __func__, next_freq_khz);
 
 		retval = rtc6226_get_register(radio, RSSI);
-		if (retval < 0){
-			pr_err("%s read fail to RSSI\n", __func__);
+		if (retval < 0) {
+			FMDERR("%s read fail to RSSI\n", __func__);
 			goto seek_tune_fail;
 		}
+		rssi = radio->registers[RSSI] & RSSI_RSSI;
+		FMDBG("%s valid channel %d, rssi %d threshold rssi %d\n",
+				 __func__, next_freq_khz, rssi, radio->rssi_th);
 
-		/* Should read channel */
-		retval = rtc6226_get_register(radio, CHANNEL1);
-		if (retval < 0){
-			pr_err("%s read fail to Channnel\n", __func__);
-			goto seek_tune_fail;
-		}
-
-		check_108bounday =
-			(radio->registers[CHANNEL1] & STATUS_READCH) == INDEX_108MHZ ? 1 : 0;
-			/* 10800 is the BL_108MHz */
-		//if (check_108bounday)
-		pr_info("%s ch index %d is valid channel, checkbounday = %d\n", __func__,
-				radio->registers[STATUS] & STATUS_READCH, check_108bounday);
-
-		FMDBG("%s valid channel %d, rssi %d\n", __func__, next_freq_khz/16, radio->registers[RSSI] & RSSI_RSSI);
-
-		if (radio->g_search_mode == SCAN)
+		if (radio->g_search_mode == SCAN && rssi >= radio->rssi_th)
 			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-
-		if (radio->is_search_cancelled == true) {
-			pr_err("%s: scan cancelled\n", __func__);
+		/*
+		 * If scan is cancelled or FM is not ON, break ASAP so that we
+		 * don't need to sleep for dwell time.
+		 */
+		if (radio->is_search_cancelled) {
+			FMDERR("%s: scan cancelled\n", __func__);
 			if (radio->g_search_mode == SCAN_FOR_STRONG)
 				goto seek_tune_fail;
 			else
 				goto seek_cancelled;
 			goto seek_cancelled;
 		} else if (radio->mode != FM_RECV) {
-			pr_err("%s: FM is not in proper state\n", __func__);
-			return ;
+			FMDERR("%s: FM is not in proper state\n", __func__);
+			rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+			return;
 		}
-		pr_info("%s before update search list %d\n", __func__, next_freq_khz/16);
-		if (radio->g_search_mode == SCAN) {
+		FMDBG("%s update search list %d\n", __func__, next_freq_khz);
+		if (radio->g_search_mode == SCAN && rssi >= radio->rssi_th) {
 			/* sleep for dwell period */
 			msleep(radio->dwell_time_sec * 1000);
 			/* need to queue the event when the seek completes */
-			pr_info("%s frequency update list %d\n", __func__, next_freq_khz/16);
+			FMDBG("%s frequency update list %d\n", __func__,
+				next_freq_khz);
 			rtc6226_q_event(radio, RTC6226_EVT_SCAN_NEXT);
-		} else if (radio->g_search_mode == SCAN_FOR_STRONG) {
+		} else if (radio->g_search_mode == SCAN_FOR_STRONG
+					&& rssi >= radio->rssi_th) {
 			rtc6226_update_search_list(radio, next_freq_khz);
 		}
 
-		if (radio->registers[STATUS] & STATUS_SF) {
+		FMDBG("%s : STATUS=0x%4.4hx\n", __func__,
+				radio->registers[STATUS]);
+		if (radio->registers[STATUS] & STATUS_SF ||
+				(radio->recv_conf.band_high_limit *
+				TUNE_STEP_SIZE) == next_freq_khz) {
 			FMDERR("%s Seek one more time if lower freq is valid\n",
 					__func__);
-			retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_ENABLE);
+			// Tuned to band low limit + chan spacing then seek down with
+			// bandlimit config
+			if (radio->space == 0)
+				factor = 20;
+			else if (radio->space == 1)
+				factor = 10;
+			else
+				factor = 5;
+			retval = rtc6226_set_freq(radio,
+				(radio->recv_conf.band_low_limit + factor) * TUNE_STEP_SIZE);
+			if (retval < 0)
+				goto seek_tune_fail;
+			/* wait for tune to complete. */
+			if (!wait_for_completion_timeout(&radio->completion,
+						msecs_to_jiffies(TUNE_TIMEOUT_MSEC))) {
+				FMDERR("In %s, didn't receive STC for tune\n", __func__);
+				rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+				return;
+			}
+			retval = rtc6226_set_seek(radio, SRCH_DOWN, WRAP_DISABLE);
 			if (retval < 0) {
 				FMDERR("%s seek fail %d\n", __func__, retval);
 				goto seek_tune_fail;
@@ -565,6 +583,8 @@ void rtc6226_scan(struct work_struct *work)
 			if (!wait_for_completion_timeout(&radio->completion,
 					msecs_to_jiffies(SEEK_TIMEOUT_MSEC))) {
 				FMDERR("timeout didn't receive STC for seek\n");
+				rtc6226_q_event(radio, RTC6226_EVT_ERROR);
+				return;
 			} else {
 				FMDERR("%s: received STC for seek\n", __func__);
 				retval = rtc6226_get_freq(radio,
@@ -573,9 +593,21 @@ void rtc6226_scan(struct work_struct *work)
 					FMDERR("%s getFreq failed\n", __func__);
 					goto seek_tune_fail;
 				}
-				if ((radio->recv_conf.band_low_limit *
-						TUNE_STEP_SIZE) ==
-							next_freq_khz) {
+				retval = rtc6226_get_register(radio, RSSI);
+				if (retval < 0) {
+					FMDERR("%s read fail to RSSI\n",
+								__func__);
+					goto seek_tune_fail;
+				}
+				rssi = radio->registers[RSSI] & RSSI_RSSI;
+				FMDBG("%s freq %d, rssi %d rssi threshold %d\n",
+				 __func__, next_freq_khz, rssi, radio->rssi_th);
+				// Reach to band low limit,
+				// if SF is 0, means frequency at low limit is a commercial
+				// station Or a invalid channel
+				if (((radio->registers[STATUS] & STATUS_SF) == 0) ||
+						(radio->recv_conf.band_high_limit *
+						TUNE_STEP_SIZE) == next_freq_khz) {
 					FMDERR("lower band freq is valid\n");
 					rtc6226_q_event(radio,
 						RTC6226_EVT_TUNE_SUCC);
@@ -599,17 +631,29 @@ seek_tune_fail:
 				&radio->buf_lock[RTC6226_FM_BUF_SRCH_LIST]);
 		rtc6226_q_event(radio, RTC6226_EVT_NEW_SRCH_LIST);
 	}
-	pr_err("%s seek tune fail %d",__func__, retval);
-
-
 seek_cancelled:
+	/* tune to original frequency */
+	retval = rtc6226_set_freq(radio, current_freq_khz);
+	if (retval < 0)
+		FMDERR("%s: Tune to orig freq failed with error %d\n",
+				__func__, retval);
+	else {
+		if (!wait_for_completion_timeout(&radio->completion,
+			msecs_to_jiffies(TUNE_TIMEOUT_MSEC)))
+			FMDERR("%s: didn't receive STD for tune\n", __func__);
+		else
+			FMDERR("%s: received STD for tune\n", __func__);
+	}
+	/* Enable the RDS as it was disabled before scan */
 	rtc6226_rds_on(radio);
 	rtc6226_q_event(radio, RTC6226_EVT_SEEK_COMPLETE);
+	rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
 	radio->seek_tune_status = NO_SEEK_TUNE_PENDING;
 	FMDERR("%s seek cancelled %d\n", __func__, retval);
 	return;
 
 }
+
 
 int rtc6226_cancel_seek(struct rtc6226_device *radio)
 {

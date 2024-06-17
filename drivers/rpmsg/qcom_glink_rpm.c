@@ -353,6 +353,7 @@ static struct platform_driver glink_rpm_driver = {
 #ifdef CONFIG_LGE_PM_DEBUG
 		.pm		= &glink_rpm_pm_ops,
 #endif
+		.pm = &glink_native_pm_ops,
 	},
 };
 

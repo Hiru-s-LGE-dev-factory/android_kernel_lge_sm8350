@@ -22,6 +22,8 @@
    standalone connection tracking module, and the compatibility layer's use
    of connection tracking. */
 
+extern unsigned int nf_conntrack_hash_rnd;
+
 unsigned int nf_conntrack_in(struct sk_buff *skb,
 			     const struct nf_hook_state *state);
 
@@ -69,8 +71,13 @@ static inline int nf_conntrack_confirm(struct sk_buff *skb)
 	int ret = NF_ACCEPT;
 
 	if (ct) {
-		if (!nf_ct_is_confirmed(ct))
+		if (!nf_ct_is_confirmed(ct)) {
 			ret = __nf_conntrack_confirm(skb);
+
+			if (ret == NF_ACCEPT)
+				ct = (struct nf_conn *)skb_nfct(skb);
+		}
+
 		if (likely(ret == NF_ACCEPT))
 			nf_ct_deliver_cached_events(ct);
 	}

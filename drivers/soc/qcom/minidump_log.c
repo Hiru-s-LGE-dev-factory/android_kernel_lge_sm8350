@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/cache.h>
@@ -190,9 +190,12 @@ static void __init register_kernel_sections(void)
 {
 	struct md_region ksec_entry;
 	char *data_name = "KDATABSS";
+	char *rodata_name = "KROAIDATA";
+#ifdef CONFIG_SMP
 	const size_t static_size = __per_cpu_end - __per_cpu_start;
 	void __percpu *base = (void __percpu *)__per_cpu_start;
 	unsigned int cpu;
+#endif
 
 	strlcpy(ksec_entry.name, data_name, sizeof(ksec_entry.name));
 	ksec_entry.virt_addr = (uintptr_t)_sdata;
@@ -201,6 +204,14 @@ static void __init register_kernel_sections(void)
 	if (msm_minidump_add_region(&ksec_entry) < 0)
 		pr_err("Failed to add data section in Minidump\n");
 
+	strlcpy(ksec_entry.name, rodata_name, sizeof(ksec_entry.name));
+	ksec_entry.virt_addr = (uintptr_t)__start_ro_after_init;
+	ksec_entry.phys_addr = virt_to_phys(__start_ro_after_init);
+	ksec_entry.size = roundup((__end_ro_after_init - __start_ro_after_init), 4);
+	if (msm_minidump_add_region(&ksec_entry) < 0)
+		pr_err("Failed to add rodata section in Minidump\n");
+
+#ifdef CONFIG_SMP
 	/* Add percpu static sections */
 	for_each_possible_cpu(cpu) {
 		void *start = per_cpu_ptr(base, cpu);
@@ -214,6 +225,7 @@ static void __init register_kernel_sections(void)
 		if (msm_minidump_add_region(&ksec_entry) < 0)
 			pr_err("Failed to add percpu sections in Minidump\n");
 	}
+#endif
 }
 
 static inline bool in_stack_range(
@@ -256,7 +268,7 @@ void dump_stack_minidump(u64 sp)
 
 	is_vmap_stack = IS_ENABLED(CONFIG_VMAP_STACK);
 
-	if (sp < KIMAGE_VADDR || sp > -256UL)
+	if (sp < MODULES_END || sp > -256UL)
 		sp = current_stack_pointer;
 
 	/*

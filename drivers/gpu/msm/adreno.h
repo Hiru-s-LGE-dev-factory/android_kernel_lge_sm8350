@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_H
 #define __ADRENO_H
@@ -14,6 +15,9 @@
 #include "adreno_profile.h"
 #include "adreno_ringbuffer.h"
 #include "kgsl_sharedmem.h"
+
+/* Index to preemption scratch buffer to store KMD postamble */
+#define KMD_POSTAMBLE_IDX 100
 
 /* ADRENO_DEVICE - Given a kgsl_device return the adreno device struct */
 #define ADRENO_DEVICE(device) \
@@ -201,9 +205,12 @@ enum adreno_gpurev {
 	ADRENO_REV_A620 = 620,
 	ADRENO_REV_A630 = 630,
 	ADRENO_REV_A640 = 640,
+	ADRENO_REV_A642 = 642,
+	ADRENO_REV_A643 = 643,
 	ADRENO_REV_A650 = 650,
 	ADRENO_REV_A660 = 660,
 	ADRENO_REV_A680 = 680,
+	ADRENO_REV_A702 = 702,
 };
 
 #define ADRENO_SOFT_FAULT BIT(0)
@@ -227,6 +234,9 @@ struct adreno_gpudev;
 
 /* Time to allow preemption to complete (in ms) */
 #define ADRENO_PREEMPT_TIMEOUT 10000
+
+#define PREEMPT_SCRATCH_ADDR(dev, id) \
+	((dev)->preempt.scratch->gpuaddr + (id * sizeof(u64)))
 
 /**
  * enum adreno_preempt_states
@@ -257,6 +267,7 @@ enum adreno_preempt_states {
  * skipsaverestore: To skip saverestore during L1 preemption (for 6XX)
  * usesgmem: enable GMEM save/restore across preemption (for 6XX)
  * count: Track the number of preemptions triggered
+ * @postamble_len: Number of dwords in KMD postamble pm4 packet
  */
 struct adreno_preemption {
 	atomic_t state;
@@ -267,6 +278,7 @@ struct adreno_preemption {
 	bool skipsaverestore;
 	bool usesgmem;
 	unsigned int count;
+	u32 postamble_len;
 };
 
 struct adreno_busy_data {
@@ -377,7 +389,6 @@ struct adreno_power_ops {
  * @patchid: Match for the patch revision of the GPU
  * @features: Common adreno features supported by this core
  * @gpudev: Pointer to the GPU family specific functions for this core
- * @gmem_base: Base address of binning memory (GMEM/OCMEM)
  * @gmem_size: Amount of binning memory (GMEM/OCMEM) to reserve for the core
  * @bus_width: Bytes transferred in 1 cycle
  */
@@ -392,7 +403,6 @@ struct adreno_gpu_core {
 	unsigned long features;
 	const struct adreno_gpudev *gpudev;
 	const struct adreno_perfcounters *perfcounters;
-	unsigned long gmem_base;
 	size_t gmem_size;
 	u32 bus_width;
 	/** @snapshot_size: Size of the static snapshot region in bytes */
@@ -404,6 +414,7 @@ struct adreno_gpu_core {
  * @dev: Reference to struct kgsl_device
  * @priv: Holds the private flags specific to the adreno_device
  * @chipid: Chip ID specific to the GPU
+ * @uche_gmem_base: Base address of GMEM for UCHE access
  * @cx_misc_len: Length of the CX MISC register block
  * @cx_misc_virt: Pointer where the CX MISC block is mapped
  * @isense_base: Base physical address of isense block
@@ -480,6 +491,7 @@ struct adreno_device {
 	struct kgsl_device dev;    /* Must be first field in this struct */
 	unsigned long priv;
 	unsigned int chipid;
+	u64 uche_gmem_base;
 	unsigned long cx_dbgc_base;
 	unsigned int cx_dbgc_len;
 	void __iomem *cx_dbgc_virt;
@@ -573,6 +585,11 @@ struct adreno_device {
 	const void *cp_init_cmds;
 	/** @irq_mask: The current interrupt mask for the GPU device */
 	u32 irq_mask;
+	/*
+	 * @perfcounter: Flag to clear perfcounters across contexts and
+	 * controls perfcounter ioctl read
+	 */
+	bool perfcounter;
 };
 
 /**
@@ -701,6 +718,7 @@ enum adreno_regs {
 	ADRENO_REG_GMU_AHB_FENCE_STATUS,
 	ADRENO_REG_GMU_GMU2HOST_INTR_MASK,
 	ADRENO_REG_GPMU_POWER_COUNTER_ENABLE,
+	ADRENO_REG_GMU_AO_RBBM_INT_UNMASKED_STATUS,
 	ADRENO_REG_REGISTER_MAX,
 };
 
@@ -1047,15 +1065,21 @@ static inline int adreno_is_a505_or_a506(struct adreno_device *adreno_dev)
 static inline int adreno_is_a6xx(struct adreno_device *adreno_dev)
 {
 	return ADRENO_GPUREV(adreno_dev) >= 600 &&
-			ADRENO_GPUREV(adreno_dev) < 700;
+			ADRENO_GPUREV(adreno_dev) <= 702;
 }
 
-static inline int adreno_is_a660_shima(struct adreno_device *adreno_dev)
+static inline int adreno_is_a642(struct adreno_device *adreno_dev)
 {
-	return (ADRENO_GPUREV(adreno_dev) == ADRENO_REV_A660) &&
-		(adreno_dev->gpucore->compatible &&
+	return (adreno_dev->gpucore->compatible &&
 		!strcmp(adreno_dev->gpucore->compatible,
-		"qcom,adreno-gpu-a660-shima"));
+		"qcom,adreno-gpu-a642"));
+}
+
+static inline int adreno_is_a642l(struct adreno_device *adreno_dev)
+{
+	return (adreno_dev->gpucore->compatible &&
+		!strcmp(adreno_dev->gpucore->compatible,
+		"qcom,adreno-gpu-a642l"));
 }
 
 ADRENO_TARGET(a610, ADRENO_REV_A610)
@@ -1065,9 +1089,19 @@ ADRENO_TARGET(a619, ADRENO_REV_A619)
 ADRENO_TARGET(a620, ADRENO_REV_A620)
 ADRENO_TARGET(a630, ADRENO_REV_A630)
 ADRENO_TARGET(a640, ADRENO_REV_A640)
+ADRENO_TARGET(a643, ADRENO_REV_A643)
 ADRENO_TARGET(a650, ADRENO_REV_A650)
-ADRENO_TARGET(a660, ADRENO_REV_A660)
 ADRENO_TARGET(a680, ADRENO_REV_A680)
+ADRENO_TARGET(a702, ADRENO_REV_A702)
+
+/* A642, A642L and A643 are derived from A660 and shares same logic */
+static inline int adreno_is_a660(struct adreno_device *adreno_dev)
+{
+	unsigned int rev = ADRENO_GPUREV(adreno_dev);
+
+	return (rev == ADRENO_REV_A660 || adreno_is_a642(adreno_dev) ||
+		adreno_is_a642l(adreno_dev) || adreno_is_a643(adreno_dev));
+}
 
 /*
  * All the derived chipsets from A615 needs to be added to this
@@ -1095,8 +1129,8 @@ static inline int adreno_is_a640_family(struct adreno_device *adreno_dev)
 /*
  * Derived GPUs from A650 needs to be added to this list.
  * A650 is derived from A640 but register specs has been
- * changed hence do not belongs to A640 family. A620,
- * A660, A690 follows the register specs of A650.
+ * changed hence do not belongs to A640 family. A620, A642,
+ * A642L, A660, A690 follows the register specs of A650.
  *
  */
 static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
@@ -1104,7 +1138,8 @@ static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
 	unsigned int rev = ADRENO_GPUREV(adreno_dev);
 
 	return (rev == ADRENO_REV_A650 || rev == ADRENO_REV_A620 ||
-		rev == ADRENO_REV_A660);
+		rev == ADRENO_REV_A660 || adreno_is_a642(adreno_dev) ||
+		adreno_is_a642l(adreno_dev) || rev == ADRENO_REV_A643);
 }
 
 static inline int adreno_is_a619_holi(struct adreno_device *adreno_dev)

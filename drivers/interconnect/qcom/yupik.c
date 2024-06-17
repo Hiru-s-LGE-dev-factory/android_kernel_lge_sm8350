@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  */
 
@@ -23,6 +23,8 @@
 
 static LIST_HEAD(qnoc_probe_list);
 static DEFINE_MUTEX(probe_list_lock);
+
+static int probe_count;
 
 static struct qcom_icc_qosbox qhm_qspi_qos = {
 	.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],
@@ -260,7 +262,7 @@ static struct qcom_icc_qosbox qxm_crypto_qos = {
 	.offsets = { 0x1d000 },
 	.config = &(struct qos_config) {
 		.prio = 2,
-		.urg_fwd = 1,
+		.urg_fwd = 0,
 	},
 };
 
@@ -296,35 +298,14 @@ static struct qcom_icc_node qxm_ipa = {
 	.links = { SLAVE_A2NOC_SNOC },
 };
 
-static struct qcom_icc_qosbox xm_pcie3_0_qos = {
-	.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],
-	.num_ports = 1,
-	.offsets = { 0xd000 },
-	.config = &(struct qos_config) {
-		.prio = 2,
-		.urg_fwd = 0,
-	},
-};
-
 static struct qcom_icc_node xm_pcie3_0 = {
 	.name = "xm_pcie3_0",
 	.id = MASTER_PCIE_0,
 	.channels = 1,
 	.buswidth = 8,
 	.noc_ops = &qcom_qnoc4_ops,
-	.qosbox = &xm_pcie3_0_qos,
 	.num_links = 1,
 	.links = { SLAVE_ANOC_PCIE_GEM_NOC },
-};
-
-static struct qcom_icc_qosbox xm_pcie3_1_qos = {
-	.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],
-	.num_ports = 1,
-	.offsets = { 0xf000 },
-	.config = &(struct qos_config) {
-		.prio = 2,
-		.urg_fwd = 0,
-	},
 };
 
 static struct qcom_icc_node xm_pcie3_1 = {
@@ -333,7 +314,6 @@ static struct qcom_icc_node xm_pcie3_1 = {
 	.channels = 1,
 	.buswidth = 8,
 	.noc_ops = &qcom_qnoc4_ops,
-	.qosbox = &xm_pcie3_1_qos,
 	.num_links = 1,
 	.links = { SLAVE_ANOC_PCIE_GEM_NOC },
 };
@@ -494,7 +474,7 @@ static struct qcom_icc_qosbox alm_gpu_tcu_qos = {
 	.num_ports = 1,
 	.offsets = { 0xd7000 },
 	.config = &(struct qos_config) {
-		.prio = 1,
+		.prio = 2,
 		.urg_fwd = 0,
 	},
 };
@@ -638,23 +618,12 @@ static struct qcom_icc_node qnm_mnoc_sf = {
 	.links = { SLAVE_GEM_NOC_CNOC, SLAVE_LLCC },
 };
 
-static struct qcom_icc_qosbox qnm_pcie_qos = {
-	.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],
-	.num_ports = 1,
-	.offsets = { 0xd2000 },
-	.config = &(struct qos_config) {
-		.prio = 2,
-		.urg_fwd = 0,
-	},
-};
-
 static struct qcom_icc_node qnm_pcie = {
 	.name = "qnm_pcie",
 	.id = MASTER_ANOC_PCIE_GEM_NOC,
 	.channels = 1,
 	.buswidth = 16,
 	.noc_ops = &qcom_qnoc4_ops,
-	.qosbox = &qnm_pcie_qos,
 	.num_links = 2,
 	.links = { SLAVE_GEM_NOC_CNOC, SLAVE_LLCC },
 };
@@ -878,6 +847,27 @@ static struct qcom_icc_node qxm_nsp = {
 	.noc_ops = &qcom_qnoc4_ops,
 	.num_links = 1,
 	.links = { SLAVE_CDSP_MEM_NOC },
+};
+
+static struct qcom_icc_qosbox qhm_gic_qos = {
+	.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],
+	.num_ports = 1,
+	.offsets = { 0x9000 },
+	.config = &(struct qos_config) {
+		.prio = 2,
+		.urg_fwd = 0,
+	},
+};
+
+static struct qcom_icc_node qhm_gic = {
+	.name = "qhm_gic",
+	.id = MASTER_GIC_1,
+	.channels = 1,
+	.buswidth = 4,
+	.noc_ops = &qcom_qnoc4_ops,
+	.qosbox = &qhm_gic_qos,
+	.num_links = 1,
+	.links = { SLAVE_SNOC_GEM_NOC_SF },
 };
 
 static struct qcom_icc_node qnm_aggre1_noc = {
@@ -2082,6 +2072,9 @@ static struct qcom_icc_bcm bcm_sh0_disp = {
 };
 
 static struct qcom_icc_bcm *aggre1_noc_bcms[] = {
+	&bcm_sn5,
+	&bcm_sn6,
+	&bcm_sn14,
 };
 
 static struct qcom_icc_node *aggre1_noc_nodes[] = {
@@ -2089,12 +2082,15 @@ static struct qcom_icc_node *aggre1_noc_nodes[] = {
 	[MASTER_QUP_0] = &qhm_qup0,
 	[MASTER_QUP_1] = &qhm_qup1,
 	[MASTER_A1NOC_CFG] = &qnm_a1noc_cfg,
+	[MASTER_PCIE_0] = &xm_pcie3_0,
+	[MASTER_PCIE_1] = &xm_pcie3_1,
 	[MASTER_SDCC_1] = &xm_sdc1,
 	[MASTER_SDCC_2] = &xm_sdc2,
 	[MASTER_SDCC_4] = &xm_sdc4,
 	[MASTER_UFS_MEM] = &xm_ufs_mem,
 	[MASTER_USB3_0] = &xm_usb3_0,
 	[SLAVE_A1NOC_SNOC] = &qns_a1noc_snoc,
+	[SLAVE_ANOC_PCIE_GEM_NOC] = &qns_pcie_mem_noc,
 	[SLAVE_SERVICE_A1NOC] = &srvc_aggre1_noc,
 };
 
@@ -2113,9 +2109,6 @@ static struct qcom_icc_desc yupik_aggre1_noc = {
 
 static struct qcom_icc_bcm *aggre2_noc_bcms[] = {
 	&bcm_ce0,
-	&bcm_sn5,
-	&bcm_sn6,
-	&bcm_sn14,
 };
 
 static struct qcom_icc_node *aggre2_noc_nodes[] = {
@@ -2124,11 +2117,8 @@ static struct qcom_icc_node *aggre2_noc_nodes[] = {
 	[MASTER_CNOC_A2NOC] = &qnm_cnoc_datapath,
 	[MASTER_CRYPTO] = &qxm_crypto,
 	[MASTER_IPA] = &qxm_ipa,
-	[MASTER_PCIE_0] = &xm_pcie3_0,
-	[MASTER_PCIE_1] = &xm_pcie3_1,
 	[MASTER_QDSS_ETR] = &xm_qdss_etr,
 	[SLAVE_A2NOC_SNOC] = &qns_a2noc_snoc,
-	[SLAVE_ANOC_PCIE_GEM_NOC] = &qns_pcie_mem_noc,
 	[SLAVE_SERVICE_A2NOC] = &srvc_aggre2_noc,
 };
 
@@ -2468,6 +2458,7 @@ static struct qcom_icc_bcm *system_noc_bcms[] = {
 };
 
 static struct qcom_icc_node *system_noc_nodes[] = {
+	[MASTER_GIC_1] = &qhm_gic,
 	[MASTER_A1NOC_SNOC] = &qnm_aggre1_noc,
 	[MASTER_A2NOC_SNOC] = &qnm_aggre2_noc,
 	[MASTER_SNOC_CFG] = &qnm_snoc_cfg,
@@ -2515,21 +2506,6 @@ qcom_icc_map(struct platform_device *pdev, const struct qcom_icc_desc *desc)
 	return devm_regmap_init_mmio(dev, base, &icc_regmap_config);
 }
 
-static void qcom_icc_stub_pre_aggregate(struct icc_node *node)
-{
-}
-
-static int qcom_icc_stub_aggregate(struct icc_node *node, u32 tag, u32 avg_bw,
-			u32 peak_bw, u32 *agg_avg, u32 *agg_peak)
-{
-	return 0;
-}
-
-static int qcom_icc_stub_set(struct icc_node *src, struct icc_node *dst)
-{
-	return 0;
-}
-
 static int qnoc_probe(struct platform_device *pdev)
 {
 	const struct qcom_icc_desc *desc;
@@ -2558,9 +2534,9 @@ static int qnoc_probe(struct platform_device *pdev)
 
 	provider = &qp->provider;
 	provider->dev = &pdev->dev;
-	provider->set = qcom_icc_stub_set;
-	provider->pre_aggregate = qcom_icc_stub_pre_aggregate;
-	provider->aggregate = qcom_icc_stub_aggregate;
+	provider->set = qcom_icc_set;
+	provider->pre_aggregate = qcom_icc_pre_aggregate;
+	provider->aggregate = qcom_icc_aggregate;
 	provider->xlate = of_icc_xlate_onecell;
 	INIT_LIST_HEAD(&provider->nodes);
 	provider->data = data;
@@ -2574,6 +2550,12 @@ static int qnoc_probe(struct platform_device *pdev)
 				  sizeof(*qp->voters), GFP_KERNEL);
 	if (!qp->voters)
 		return -ENOMEM;
+
+	for (i = 0; i < qp->num_voters; i++) {
+		qp->voters[i] = of_bcm_voter_get(qp->dev, desc->voters[i]);
+		if (IS_ERR(qp->voters[i]))
+			return PTR_ERR(qp->voters[i]);
+	}
 
 	qp->regmap = qcom_icc_map(pdev, desc);
 	if (IS_ERR(qp->regmap))
@@ -2589,6 +2571,8 @@ static int qnoc_probe(struct platform_device *pdev)
 	if (qp->num_clks < 0)
 		return qp->num_clks;
 
+	ret = clk_bulk_prepare_enable(qp->num_clks, qp->clks);
+
 	for (i = 0; i < num_nodes; i++) {
 		size_t j;
 
@@ -2601,6 +2585,11 @@ static int qnoc_probe(struct platform_device *pdev)
 		if (IS_ERR(node)) {
 			ret = PTR_ERR(node);
 			goto err;
+		}
+
+		if (qnodes[i]->qosbox) {
+			qnodes[i]->noc_ops->set_qos(qnodes[i]);
+			qnodes[i]->qosbox->initialized = true;
 		}
 
 		node->name = qnodes[i]->name;
@@ -2617,6 +2606,11 @@ static int qnoc_probe(struct platform_device *pdev)
 		data->nodes[i] = node;
 	}
 	data->num_nodes = num_nodes;
+
+	clk_bulk_disable_unprepare(qp->num_clks, qp->clks);
+
+	for (i = 0; i < qp->num_bcms; i++)
+		qcom_icc_bcm_init(qp->bcms[i], &pdev->dev);
 
 	platform_set_drvdata(pdev, qp);
 
@@ -2684,12 +2678,50 @@ static const struct of_device_id qnoc_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, qnoc_of_match);
 
+static void qnoc_sync_state(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct qcom_icc_provider *qp = platform_get_drvdata(pdev);
+	struct qcom_icc_bcm *bcm;
+	struct bcm_voter *voter;
+
+	mutex_lock(&probe_list_lock);
+	probe_count++;
+
+	if (probe_count < ARRAY_SIZE(qnoc_of_match) - 1) {
+		mutex_unlock(&probe_list_lock);
+		return;
+	}
+
+	list_for_each_entry(qp, &qnoc_probe_list, probe_list) {
+		int i;
+
+		for (i = 0; i < qp->num_voters; i++)
+			qcom_icc_bcm_voter_clear_init(qp->voters[i]);
+
+		for (i = 0; i < qp->num_bcms; i++) {
+			bcm = qp->bcms[i];
+			if (!bcm->keepalive)
+				continue;
+
+			voter = qp->voters[bcm->voter_idx];
+			qcom_icc_bcm_voter_add(voter, bcm);
+			qcom_icc_bcm_voter_commit(voter);
+		}
+	}
+
+	mutex_unlock(&probe_list_lock);
+
+	pr_err("ICC interconnect state synced\n");
+}
+
 static struct platform_driver qnoc_driver = {
 	.probe = qnoc_probe,
 	.remove = qnoc_remove,
 	.driver = {
 		.name = "qnoc-yupik",
 		.of_match_table = qnoc_of_match,
+		.sync_state = qnoc_sync_state,
 	},
 };
 

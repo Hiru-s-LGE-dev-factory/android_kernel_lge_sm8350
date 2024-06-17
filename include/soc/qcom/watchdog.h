@@ -152,6 +152,7 @@ struct msm_watchdog_data {
 #ifdef CONFIG_LGE_HANDLE_PANIC
 	unsigned long long alive_time[NR_CPUS];
 #endif
+	struct timer_list user_pet_timer;
 };
 
 extern void qcom_wdt_trigger_bite(void);

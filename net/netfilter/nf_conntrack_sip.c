@@ -293,7 +293,7 @@ static void recalc_header(struct sk_buff *skb, unsigned int skblen,
 	struct tcphdr *tcph;
 
 	/* here we recalculate ip and tcp headers */
-	if (nf_ct_l3num((struct nf_conn *)skb->_nfct) == NFPROTO_IPV4) {
+	if (nf_ct_l3num((struct nf_conn *)skb_nfct(skb)) == NFPROTO_IPV4) {
 		/* fix IP hdr checksum information */
 		ip_hdr(skb)->tot_len = htons(skblen);
 		ip_send_check(ip_hdr(skb));
@@ -303,7 +303,7 @@ static void recalc_header(struct sk_buff *skb, unsigned int skblen,
 	}
 	datalen = skb->len - protoff;
 	tcph = (struct tcphdr *)((void *)skb->data + protoff);
-	nf_nat_csum_recalc(skb, nf_ct_l3num((struct nf_conn *)skb->_nfct),
+	nf_nat_csum_recalc(skb, nf_ct_l3num((struct nf_conn *)skb_nfct(skb)),
 			   IPPROTO_TCP, tcph, &tcph->check, datalen, oldlen);
 }
 
@@ -403,8 +403,13 @@ static int nf_sip_enqueue_packet(struct nf_queue_entry *entry,
 	return 0;
 }
 
+static void nf_hook_drop_sip(struct net *net)
+{
+}
+
 static const struct nf_queue_handler nf_sip_qh = {
 	.outfn	= &nf_sip_enqueue_packet,
+	.nf_hook_drop	= &nf_hook_drop_sip,
 };
 
 static
@@ -415,6 +420,9 @@ int proc_sip_segment(struct ctl_table *ctl, int write,
 
 	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
 	if (nf_ct_enable_sip_segmentation) {
+		pr_debug("de-registering queue handler before register for sip\n");
+		nf_unregister_queue_handler(&init_net);
+
 		pr_debug("registering queue handler\n");
 		nf_register_queue_handler(&init_net, &nf_sip_qh);
 	} else {
@@ -1884,7 +1892,7 @@ static void sip_tcp_skip_process(int ret, struct nf_conn *ct, struct sk_buff *sk
 
 		hooks = rcu_dereference(nf_nat_sip_hooks);
 		if (hooks)
-			hooks->seq_adjust(skb, protoff, tdiff);
+			hooks->seq_adjust(skb, protoff, *tdiff);
 	}
 }
 
@@ -1893,10 +1901,10 @@ static void sip_tcp_skb_combined_processing(bool skb_is_combined, struct sk_buff
 					    enum ip_conntrack_dir dir, struct sk_buff *combined_skb,
 					    struct nf_conn *ct, unsigned int protoff,
 					    struct sip_list *sip_entry, s16 tdiff,
-					    unsigned int dataoff_orig)
+					    unsigned int dataoff_orig, unsigned int oldlen1)
 {
 	if (skb_is_combined) {
-		unsigned int splitlen, oldlen, oldlen1;
+		unsigned int splitlen = 0, oldlen = 0;
 		/* once combined skb is processed, split the skbs again The
 		 * length to split at is the same as length of first skb. Any
 		 * changes in the combined skb length because of SIP processing
@@ -1905,7 +1913,9 @@ static void sip_tcp_skb_combined_processing(bool skb_is_combined, struct sk_buff
 		splitlen = (dir == IP_CT_DIR_ORIGINAL) ?
 				ct->segment.skb_len[0] : ct->segment.skb_len[1];
 		oldlen = combined_skb->len - protoff;
-		oldlen1 = skb->len - protoff;
+		/* Reset skb->len and skb->tail params before skb split. */
+		skb->len = 0;
+		skb->tail = skb->data;
 		skb_split(combined_skb, skb, splitlen);
 		/* Headers need to be recalculated since during SIP processing
 		 * headers are calculated based on the change in length of the
@@ -1953,7 +1963,7 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
 	unsigned int datalen = 0, msglen = 0, origlen = 0;
 #ifdef CONFIG_NF_CONNTRACK_SIP_SEGMENTATION
 	unsigned int dataoff_orig = 0;
-	unsigned int splitlen, oldlen, oldlen1;
+	unsigned int oldlen1 = 0;
 	struct sip_list *sip_entry = NULL;
 	bool skip_sip_process = false;
 	bool do_not_process = false;
@@ -1962,6 +1972,7 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
 	enum ip_conntrack_dir dir = IP_CT_DIR_MAX;
 	struct sk_buff *combined_skb = NULL;
 	bool content_len_exists = true;
+	bool sip_frag_in_queue = false;
 
 	packet_count++;
 	pr_debug("packet count %d\n", packet_count);
@@ -1980,6 +1991,9 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
 	if (dataoff >= skb->len)
 		return NF_ACCEPT;
 
+	if (!ct)
+		return NF_DROP;
+
 	nf_ct_refresh(ct, skb, sip_timeout * HZ);
 
 	if (unlikely(skb_linearize(skb)))
@@ -1987,6 +2001,24 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
 
 	dptr = skb->data + dataoff;
 	datalen = skb->len - dataoff;
+
+#ifdef CONFIG_NF_CONNTRACK_SIP_SEGMENTATION
+	if (nf_ct_enable_sip_segmentation && ct->sip_segment_list.next != &ct->sip_segment_list)
+		sip_frag_in_queue = true;
+
+	if (datalen < strlen("SIP/2.0 200") && !sip_frag_in_queue)
+		return NF_ACCEPT;
+
+	if (!strnstr(dptr, "SIP/2.0", datalen) && !sip_frag_in_queue)
+		return NF_ACCEPT;
+
+	/* here we save the original datalength and data offset of the skb, this
+	 * is needed later to split combined skbs
+	 */
+	oldlen1 = skb->len - protoff;
+	dataoff_orig = dataoff;
+
+#else
 	if (datalen < strlen("SIP/2.0 200"))
 		return NF_ACCEPT;
 #ifdef CONFIG_NF_CONNTRACK_SIP_SEGMENTATION
@@ -1996,8 +2028,10 @@ static int sip_help_tcp(struct sk_buff *skb, unsigned int protoff,
 	oldlen1 = skb->len - protoff;
 	dataoff_orig = dataoff;
 
-	if (!ct)
-		return NF_DROP;
+	/* Check if the header contains SIP version */
+	if (!strnstr(dptr, "SIP/2.0", datalen))
+		return NF_ACCEPT;
+
 #endif
 	while (1) {
 		if (ct_sip_get_header(ct, dptr, 0, datalen,
@@ -2091,15 +2125,17 @@ destination:
 #ifdef CONFIG_NF_CONNTRACK_SIP_SEGMENTATION
 		if (nf_ct_enable_sip_segmentation && skb_is_combined)
 			break;
+		else
+			goto here;
 #endif
 	}
 #ifdef CONFIG_NF_CONNTRACK_SIP_SEGMENTATION
 	sip_tcp_skb_combined_processing(skb_is_combined, skb, dir, combined_skb,
-					ct, protoff, sip_entry, tdiff, dataoff_orig);
+					ct, protoff, sip_entry, tdiff, dataoff_orig, oldlen1);
 
 here:
 #endif
-	sip_tcp_skip_process(ret, ct, skb, protoff, tdiff);
+	sip_tcp_skip_process(ret, ct, skb, protoff, &tdiff);
 
 	return ret;
 }
@@ -2123,6 +2159,10 @@ static int sip_help_udp(struct sk_buff *skb, unsigned int protoff,
 	dptr = skb->data + dataoff;
 	datalen = skb->len - dataoff;
 	if (datalen < strlen("SIP/2.0 200"))
+		return NF_ACCEPT;
+
+	/* Check if the header contains SIP version */
+	if (!strnstr(dptr, "SIP/2.0", datalen))
 		return NF_ACCEPT;
 
 	return process_sip_msg(skb, ct, protoff, dataoff, &dptr, &datalen);
@@ -2156,6 +2196,7 @@ static const struct nf_conntrack_expect_policy sip_exp_policy[SIP_EXPECT_MAX + 1
 static void __exit nf_conntrack_sip_fini(void)
 {
 	nf_conntrack_helpers_unregister(sip, ports_c * 4);
+	unregister_net_sysctl_table(sip_sysctl_header);
 }
 
 static int __init nf_conntrack_sip_init(void)

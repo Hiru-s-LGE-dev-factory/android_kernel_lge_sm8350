@@ -23,6 +23,10 @@
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/uaccess.h>
+<<<<<<< HEAD
+=======
+#include <linux/haven/hh_irq_lend.h>
+>>>>>>> 4ef3cbf34627d9547062815fb2f4c713ba51a770
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -62,7 +66,11 @@
 
 //---Touch info.---
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
+<<<<<<< HEAD
 #define TOUCH_DEFAULT_MAX_HEIGHT 1920
+=======
+#define TOUCH_DEFAULT_MAX_HEIGHT 2408
+>>>>>>> 4ef3cbf34627d9547062815fb2f4c713ba51a770
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_KEY_NUM 0
 #if TOUCH_KEY_NUM > 0
@@ -82,16 +90,96 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
 #endif
+<<<<<<< HEAD
 #define BOOT_UPDATE_FIRMWARE 0
+=======
+#define BOOT_UPDATE_FIRMWARE 1
+>>>>>>> 4ef3cbf34627d9547062815fb2f4c713ba51a770
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
 
 //---ESD Protect.---
 #define NVT_TOUCH_ESD_PROTECT 0
 #define NVT_TOUCH_ESD_CHECK_PERIOD 1500	/* ms */
 
+<<<<<<< HEAD
 struct nvt_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+=======
+enum trusted_touch_mode_config {
+	TRUSTED_TOUCH_VM_MODE,
+	TRUSTED_TOUCH_MODE_NONE
+};
+
+enum trusted_touch_pvm_states {
+	TRUSTED_TOUCH_PVM_INIT,
+	PVM_I2C_RESOURCE_ACQUIRED,
+	PVM_INTERRUPT_DISABLED,
+	PVM_IOMEM_LENT,
+	PVM_IOMEM_LENT_NOTIFIED,
+	PVM_IRQ_LENT,
+	PVM_IRQ_LENT_NOTIFIED,
+	PVM_IOMEM_RELEASE_NOTIFIED,
+	PVM_IRQ_RELEASE_NOTIFIED,
+	PVM_ALL_RESOURCES_RELEASE_NOTIFIED,
+	PVM_IRQ_RECLAIMED,
+	PVM_IOMEM_RECLAIMED,
+	PVM_INTERRUPT_ENABLED,
+	PVM_I2C_RESOURCE_RELEASED,
+	TRUSTED_TOUCH_PVM_STATE_MAX
+};
+
+enum trusted_touch_tvm_states {
+	TRUSTED_TOUCH_TVM_INIT,
+	TVM_IOMEM_LENT_NOTIFIED,
+	TVM_IRQ_LENT_NOTIFIED,
+	TVM_ALL_RESOURCES_LENT_NOTIFIED,
+	TVM_IOMEM_ACCEPTED,
+	TVM_I2C_SESSION_ACQUIRED,
+	TVM_IRQ_ACCEPTED,
+	TVM_INTERRUPT_ENABLED,
+	TVM_INTERRUPT_DISABLED,
+	TVM_IRQ_RELEASED,
+	TVM_I2C_SESSION_RELEASED,
+	TVM_IOMEM_RELEASED,
+	TRUSTED_TOUCH_TVM_STATE_MAX
+};
+
+#ifdef CONFIG_NOVATEK_TRUSTED_TOUCH
+#define TRUSTED_TOUCH_MEM_LABEL 0x7
+
+#define TRUSTED_TOUCH_EVENT_LEND_FAILURE -1
+#define TRUSTED_TOUCH_EVENT_LEND_NOTIFICATION_FAILURE -2
+#define TRUSTED_TOUCH_EVENT_ACCEPT_FAILURE -3
+#define	TRUSTED_TOUCH_EVENT_FUNCTIONAL_FAILURE -4
+#define	TRUSTED_TOUCH_EVENT_RELEASE_FAILURE -5
+#define	TRUSTED_TOUCH_EVENT_RECLAIM_FAILURE -6
+#define	TRUSTED_TOUCH_EVENT_NOTIFICATIONS_PENDING 5
+
+struct trusted_touch_vm_info {
+	enum hh_irq_label irq_label;
+	enum hh_vm_names vm_name;
+	u32 hw_irq;
+	hh_memparcel_handle_t vm_mem_handle;
+	u32 *iomem_bases;
+	u32 *iomem_sizes;
+	u32 iomem_list_size;
+	void *mem_cookie;
+#ifdef CONFIG_ARCH_QTI_VM
+	struct mutex tvm_state_mutex;
+	atomic_t tvm_state;
+#else
+	struct mutex pvm_state_mutex;
+	atomic_t pvm_state;
+#endif
+};
+#endif
+
+struct nvt_ts_data {
+	struct i2c_client *client;
+	struct input_dev *input_dev;
+	struct device *dev;
+>>>>>>> 4ef3cbf34627d9547062815fb2f4c713ba51a770
 	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
@@ -122,6 +210,28 @@ struct nvt_ts_data {
 	uint8_t xbuf[1025];
 	struct mutex xbuf_lock;
 	bool irq_enabled;
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_NOVATEK_TRUSTED_TOUCH
+	struct trusted_touch_vm_info *vm_info;
+	struct mutex nvt_clk_io_ctrl_mutex;
+	const char *touch_environment;
+	struct completion trusted_touch_powerdown;
+	struct completion touch_suspend_resume;
+	struct completion trusted_touch_interrupt;
+	struct clk *core_clk;
+	struct clk *iface_clk;
+	atomic_t trusted_touch_initialized;
+	atomic_t trusted_touch_enabled;
+	atomic_t trusted_touch_underway;
+	atomic_t suspend_resume_underway;
+	atomic_t trusted_touch_event;
+	atomic_t trusted_touch_abort_status;
+	atomic_t delayed_vm_probe_pending;
+	atomic_t trusted_touch_mode;
+	atomic_t pvm_interrupt_underway;
+#endif
+>>>>>>> 4ef3cbf34627d9547062815fb2f4c713ba51a770
 };
 
 #if NVT_TOUCH_PROC
