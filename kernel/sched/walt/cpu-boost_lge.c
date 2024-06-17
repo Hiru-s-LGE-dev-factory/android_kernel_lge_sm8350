@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2022, The Linux Foundation. All rights reserved.
  */
 #define pr_fmt(fmt) "cpu-boost: " fmt
 
@@ -15,7 +15,7 @@
 #include <linux/sysfs.h>
 #include <linux/pm_qos.h>
 
-#include "walt.h"
+#include "qc_vas.h"
 
 #define cpu_boost_attr_rw(_name)		\
 static struct kobj_attribute _name##_attr =	\
@@ -488,7 +488,7 @@ static struct input_handler cpuboost_input_handler = {
 };
 
 struct kobject *cpu_boost_kobj;
-static int cpu_boost_init(void)
+int cpu_boost_init(void)
 {
 	int cpu, ret;
 	struct cpu_sync *s;
@@ -549,4 +549,3 @@ static int cpu_boost_init(void)
 	ret = input_register_handler(&cpuboost_input_handler);
 	return 0;
 }
-late_initcall(cpu_boost_init);
