@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/init.h>
 #include <linux/err.h>
@@ -411,6 +412,7 @@ static void lsm_event_handler(uint32_t opcode, uint32_t token,
 		if (!temp) {
 			dev_err(rtd->dev, "%s: no memory for event status\n",
 				__func__);
+			spin_unlock_irqrestore(&prtd->event_lock, flags);
 			__pm_relax(prtd->ws);
 			return;
 		}
@@ -3092,14 +3094,6 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 						__func__, ret);
 				prtd->lsm_client->lab_started = false;
 			}
-			if (prtd->lsm_client->lab_buffer) {
-				ret = msm_lsm_lab_buffer_alloc(prtd,
-						LAB_BUFFER_DEALLOC);
-				if (ret)
-					dev_err(rtd->dev,
-						"%s: lab buffer dealloc failed ret %d\n",
-						__func__, ret);
-			}
 		}
 
 		if (!atomic_read(&prtd->read_abort)) {
@@ -3117,21 +3111,30 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 				"%s: LSM client session stopped %d\n",
 				 __func__, ret);
 
-		/*
-		 * Go Ahead and try de-register sound model,
-		 * even if stop failed
-		 */
 		prtd->lsm_client->started = false;
+	}
 
-		ret = q6lsm_deregister_sound_model(prtd->lsm_client);
+	if (prtd->lsm_client->lab_enable && prtd->lsm_client->lab_buffer) {
+		ret = msm_lsm_lab_buffer_alloc(prtd,
+				LAB_BUFFER_DEALLOC);
 		if (ret)
 			dev_err(rtd->dev,
-				"%s: dereg_snd_model failed, err = %d\n",
+				"%s: lab buffer dealloc failed ret %d\n",
 				__func__, ret);
-		else
-			dev_dbg(rtd->dev, "%s: dereg_snd_model successful\n",
-				 __func__);
 	}
+
+	/*
+	 * De-register existing sound models
+	 * to free SM and CAL buffer, even if
+	 * lsm client is not started.
+	 */
+	ret = q6lsm_deregister_sound_model(prtd->lsm_client);
+	if (ret)
+		dev_err(rtd->dev, "%s: dereg_snd_model failed, err = %d\n",
+			__func__, ret);
+	else
+		dev_dbg(rtd->dev, "%s: dereg_snd_model successful\n",
+			__func__);
 
 	msm_pcm_routing_dereg_phy_stream(rtd->dai_link->id,
 					SNDRV_PCM_STREAM_CAPTURE);

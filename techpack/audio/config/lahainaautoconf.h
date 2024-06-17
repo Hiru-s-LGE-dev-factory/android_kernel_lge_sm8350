@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #define CONFIG_PINCTRL_LPI 1
@@ -34,6 +34,8 @@
 #define CONFIG_SND_SOC_WCD_IRQ 1
 #define CONFIG_SND_SOC_WCD938X 1
 #define CONFIG_SND_SOC_WCD938X_SLAVE 1
+#define CONFIG_SND_SOC_WCD937X 1
+#define CONFIG_SND_SOC_WCD937X_SLAVE 1
 #define CONFIG_SND_SOC_WSA883X 1
 #define CONFIG_SND_SOC_SWR_DMIC 1
 #define CONFIG_SND_SOC_LAHAINA 1
@@ -52,3 +54,6 @@
 #define CONFIG_SND_LGE_AIS 1
 #define CONFIG_SND_LGE_TX_NXP_LIB 1
 #define CONFIG_SND_LGE_CH_SWAPPER 1
+
+#define CONFIG_AUXPCM_DISABLE 1
+#define CONFIG_SWRM_VER_1P6 1
