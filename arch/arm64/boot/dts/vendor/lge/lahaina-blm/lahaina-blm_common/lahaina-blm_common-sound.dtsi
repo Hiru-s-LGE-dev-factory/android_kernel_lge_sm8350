@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+ */
+#include "../../../qcom/lahaina-audio-overlay.dtsi"
+
+&bolero {
+	wcd938x-codec {
+		qcom,cdc-micbias1-mv = <2700>;
+		qcom,cdc-micbias2-mv = <2000>;
+		qcom,cdc-micbias3-mv = <2700>;
+		qcom,cdc-micbias4-mv = <2700>;
+	};
+};
+
+&lahaina_snd {
+	/delete-property/ qcom,wsa-max-devs;
+	/delete-property/ qcom,wsa-aux-dev-prefix;
+	/delete-property/ qcom,swr-dmic-max-devs;
+	/delete-property/ qcom,swr-dmic-prefix;
+	/delete-node/ qcom,wsa-devs;
+	/delete-node/ qcom,swr-dmic-devs;
+};
+
+&lahaina_snd {
+	qcom,audio-routing =
+		"AMIC1", "Analog Mic1",
+		"Analog Mic1", "MIC BIAS1",
+		"AMIC2", "Analog Mic2",
+		"Analog Mic2", "MIC BIAS2",
+		"AMIC3", "Analog Mic3",
+		"Analog Mic3", "MIC BIAS3",
+		"AMIC4", "Analog Mic4",
+		"Analog Mic4", "MIC BIAS3",
+		"AMIC5", "Analog Mic5",
+		"Analog Mic5", "MIC BIAS3",
+		"IN1_HPHL", "HPHL_OUT",
+		"IN2_HPHR", "HPHR_OUT",
+		"IN3_AUX", "AUX_OUT",
+		"RX_TX DEC0_INP", "TX DEC0 MUX",
+		"RX_TX DEC1_INP", "TX DEC1 MUX",
+		"RX_TX DEC2_INP", "TX DEC2 MUX",
+		"RX_TX DEC3_INP", "TX DEC3 MUX",
+		"TX SWR_INPUT", "WCD_TX_OUTPUT",
+		"VA SWR_INPUT", "VA_SWR_CLK",
+		"VA SWR_INPUT", "WCD_TX_OUTPUT",
+		"VA_AIF1 CAP", "VA_SWR_CLK",
+		"VA_AIF2 CAP", "VA_SWR_CLK",
+		"VA_AIF3 CAP", "VA_SWR_CLK";
+	qcom,msm-mbhc-gnd-swh = <0>;
+	qcom,msm-mbhc-hphl-swh = <0>;
+	qcom,msm-mbhc-moist-cfg = <0>, <0>, <2>;
+	
+	qcom,wsa-max-devs = <0>;
+	qcom,swr-dmic-max-devs = <0>;
+	
+	asoc-codec  = <&stub_codec>, <&bolero>,
+		      <&wcd938x_codec>, <&ext_disp_audio_codec>;
+	asoc-codec-names = "msm-stub-codec.1", "bolero_codec",
+			   "wcd938x_codec", "msm-ext-disp-audio-codec-rx";
+};
+
+&tx_macro {
+		swr2: tx_swr_master {
+			qcom,swr-num-dev = <1>;
+			swr_dmic_01: dmic_swr@58350220 {
+				status = "disabled";
+			};
+
+			swr_dmic_02: dmic_swr@58350221 {
+				status = "disabled";
+			};
+
+			swr_dmic_03: dmic_swr@58350222 {
+				status = "disabled";
+			};
+
+			swr_dmic_04: dmic_swr@58350223 {
+				status = "disabled";
+			};
+		};
+};
+
+&wsa_macro {
+	qcom,wsa-swr-gpios;// = <&wsa_swr_gpios>;
+	qcom,is-used-swr-gpio = <0>;
+	swr0: wsa_swr_master {
+		status = "disabled";
+		wsa883x_0221: wsa883x@02170221 {
+			status = "disabled";
+		};
+		wsa883x_0222: wsa883x@02170222 {
+			status = "disabled";
+		};
+	};
+};

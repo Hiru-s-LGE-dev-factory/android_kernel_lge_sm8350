@@ -1,0 +1,6 @@
+#include "../lahaina-blm_common/lahaina-blm_common-connectivity.dtsi"
+
+&wil6210 {
+    status = "ok";
+};
+

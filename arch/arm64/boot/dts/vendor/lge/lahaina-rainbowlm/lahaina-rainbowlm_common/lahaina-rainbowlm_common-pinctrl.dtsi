@@ -1,0 +1,92 @@
+&tlmm {
+	lge,access-denied-gpios = <12 13 15 52 53 54 55 56>;
+	lge,lahaina-reserved-gpios = <12 13 15 52 53 54 55 56>;
+
+	sde_dp_aux_active:sde_dp_aux_active {
+		mux {
+			pins = "gpio123", "gpio131";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio123", "gpio131";
+			bias-disable = <0>;
+			driver-strength = <8>;
+		};
+	};
+
+	sde_dp_aux_suspend:sde_dp_aux_suspend {
+		mux {
+			pins = "gpio123", "gpio131";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio123", "gpio131";
+			bias-pull-down;
+			driver-strength = <8>;
+		};
+	};
+
+	smart_cover_default:smart_cover_default {
+		mux {
+			pins = "gpio80";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio80";
+			input-enable;
+			bias-pull-up;
+		};
+	};
+        almf04_int_pin {
+                almf04_int_active: almf04_int_active {
+                    mux {
+                        pins = "gpio44";
+                        function = "gpio";
+                    };
+                    config {
+                        pins = "gpio44";
+                        drive-strength = <2>;   /* 2 MA */
+                        bias-pull-up;           /* PULL UP*/
+                    };
+                };
+
+                almf04_int_suspend: almf04_int_suspend {
+                    mux {
+                        pins = "gpio44";
+                        function = "gpio";
+                    };
+                    config {
+                        pins = "gpio44";
+                        drive-strength = <2>;   /* 2 MA */
+                        bias-pull-up;           /* PULL UP */
+                    };
+                };
+        };
+
+        almf04_en_pin {
+                almf04_en_active: almf04_en_active {
+                    mux {
+                        pins = "gpio45";
+                        function = "gpio";
+                    };
+                    config {
+                        pins = "gpio45";
+                        drive-strength = <2>;   /* 2 MA */
+                    };
+                };
+
+                almf04_en_suspend: almf04_en_suspend {
+                    mux {
+                        pins = "gpio45";
+                        function = "gpio";
+                    };
+                    config {
+                        pins = "gpio45";
+                        drive-strength = <2>;   /* 2 MA */
+                    };
+                };
+        };
+};

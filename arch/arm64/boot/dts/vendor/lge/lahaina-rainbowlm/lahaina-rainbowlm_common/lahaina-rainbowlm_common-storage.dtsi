@@ -1,0 +1,49 @@
+&sdhc_2 {
+    vdd-supply = <&pm8350c_l9>;
+    qcom,vdd-voltage-level = <2950000 2960000>;
+    qcom,vdd-current-level = <200 800000>;
+
+    vdd-io-supply = <&pm8350c_l6>;
+    qcom,vdd-io-voltage-level = <1808000 2960000>;
+    qcom,vdd-io-current-level = <200 22000>;
+
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&sdc2_on>;
+    pinctrl-1 = <&sdc2_off>;
+
+    cd-gpios = <&tlmm 92 GPIO_ACTIVE_LOW>;
+
+    status = "ok";
+};
+
+&ufsphy_mem {
+    compatible = "qcom,ufs-phy-qmp-v4-lahaina";
+
+    vdda-phy-supply = <&pm8350_l5>;
+    vdda-phy-always-on;
+    vdda-pll-supply = <&pm8350_l6>;
+    vdda-phy-max-microamp = <91600>;
+    vdda-pll-max-microamp = <19000>;
+
+    status = "ok";
+};
+
+&ufshc_mem {
+    vdd-hba-supply = <&gcc_ufs_phy_gdsc>;
+    vdd-hba-fixed-regulator;
+
+    vcc-supply = <&pm8350_l7>;
+    vcc-voltage-level = <2504000 2950000>;
+    vcc-max-microamp = <800000>;
+
+    vccq-supply = <&pm8350_l9>;
+    vccq-max-microamp = <900000>;
+
+    qcom,vddp-ref-clk-supply = <&pm8350_l9>;
+    qcom,vddp-ref-clk-max-microamp = <100>;
+
+    qcom,vccq-parent-supply = <&pm8350_s12>;
+    qcom,vccq-parent-max-microamp = <210000>;
+
+    status = "ok";
+};

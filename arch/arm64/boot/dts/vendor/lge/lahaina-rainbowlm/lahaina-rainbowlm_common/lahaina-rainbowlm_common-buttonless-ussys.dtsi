@@ -1,0 +1,100 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&tlmm {
+	us_touch_point_int {
+		us_touch_point_int_default: us_touch_point_int_default {
+			mux {
+				/* GPIO 47 US touch_point Interrupt */
+				pins = "gpio47";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio47";
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-up;
+			};
+		};
+	};
+	us_touch_point_rst {
+		us_touch_point_rst_default: us_touch_point_rst_default {
+			mux {
+				pins = "gpio57";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio57";
+				drive-strength = <2>;
+				bias-disable;
+				output-low;
+			};
+		};
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "ok";
+	us-touch_point@27 {  /* VOLMUE DOWN */
+		compatible = "ussys,tp_key0";
+		//compatible = "us,touch_point";
+		reg = <0x27>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&us_touch_point_int_default &us_touch_point_rst_default>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <47 0x2002>;
+		touch_point,irq-gpios = <&tlmm 47 0>;
+		touch_point,rst-gpios = <&tlmm 57 0>;
+		touch_point,share-irq-pin;
+		touch_point,i2c-block-off;
+		touch_point,rst_high_active;
+		linux,input-code = <114>;  /* VOLUME DOWN */
+		wakeup-source;
+	};
+
+	us-touch_point@2F {        /* HOME */
+		compatible = "ussys,tp_key1";
+		//compatible = "us,touch_point";
+		reg = <0x2F>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&us_touch_point_int_default &us_touch_point_rst_default>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <47 0x2002>;
+		touch_point,irq-gpios = <&tlmm 47 0>;
+		touch_point,rst-gpios = <&tlmm 57 0>;
+		touch_point,share-irq-pin;
+		touch_point,i2c-block-off;
+		touch_point,rst_high_active;
+		linux,input-code = <102>; /* HOME */
+		wakeup-source;
+	};
+
+	us-touch_point@3F {     /* VOLUME UP */
+		compatible = "ussys,tp_key2";
+		//compatible = "us,touch_point";
+		reg = <0x3F>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&us_touch_point_int_default &us_touch_point_rst_default>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <47 0x2002>;
+		touch_point,irq-gpios = <&tlmm 47 0>;
+		touch_point,rst-gpios = <&tlmm 57 0>;
+		touch_point,share-irq-pin;
+		touch_point,i2c-block-off;
+		touch_point,rst_high_active;
+		linux,input-code = <115>;  /* VOLUME UP */
+		wakeup-source;
+	};
+};

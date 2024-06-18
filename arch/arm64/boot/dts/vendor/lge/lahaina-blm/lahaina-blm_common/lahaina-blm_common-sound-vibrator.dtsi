@@ -1,0 +1,14 @@
+
+&qupv3_se13_i2c {
+	status = "ok";
+
+	dw7914@59 {
+		compatible = "dwanatech,dw7914";
+		status = "ok";
+		reg = <0x59>;
+		dongwoon,vpwr-on = <0>;
+		use_en_pin = <0>; /* 1 = use en pin, 0 = do not use en pin */
+		trigger_num = <2>; /*trigger pin number(how many)*/
+		vd_clamp = <7520>;
+	};
+};

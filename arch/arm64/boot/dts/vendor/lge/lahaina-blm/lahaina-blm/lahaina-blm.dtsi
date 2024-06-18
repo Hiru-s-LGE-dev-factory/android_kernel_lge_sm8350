@@ -1,0 +1,18 @@
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+#include "../lahaina-blm_common/lahaina-blm_common.dtsi"
+#include "lahaina-blm-connectivity.dtsi"
+#include "lahaina-blm-nfc.dtsi"
+#include "lahaina-blm-sar.dtsi"
+#include "lahaina-blm-touch.dtsi"
+#include "lahaina-blm-fingerprint.dtsi"
+#include "lahaina-blm-panel.dtsi"
+#include "lahaina-blm-usb.dtsi"
+#include "lahaina-blm-misc.dtsi"
+#include "lahaina-blm-pinctrl.dtsi"
+#include "lahaina-blm-storage.dtsi"
+#include "lahaina-blm-mme.dtsi"
+#include "lahaina-blm-pm.dtsi"
+#include "lahaina-blm-tdmb.dtsi"

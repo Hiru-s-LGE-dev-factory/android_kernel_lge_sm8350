@@ -1,0 +1,14 @@
+/dts-v1/;
+/plugin/;
+
+#include "lahaina-rainbowlm.dtsi"
+#include "lahaina-rainbowlm-sound.dtsi"
+#include "../lahaina-rainbowlm_common/lahaina-rainbowlm_common-buttonless-ussys-hub_rev-a.dtsi"
+#include "../lahaina-rainbowlm_camera/lahaina-rainbowlm_camera_rev-a.dtsi"
+
+/ {
+    model = "LG Electronics, Rainbowlm, rev.A";
+    compatible = "qcom,lahaina-mtp", "qcom,lahaina", "qcom,mtp";
+    qcom,board-id = <0x00060008 0>;
+};
+

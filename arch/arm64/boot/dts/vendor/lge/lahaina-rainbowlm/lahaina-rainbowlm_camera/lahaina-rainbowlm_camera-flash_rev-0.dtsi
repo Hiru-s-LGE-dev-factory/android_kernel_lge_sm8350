@@ -1,0 +1,56 @@
+&pm8350c_flash0 {
+	status = "ok";
+	qcom,max-current = <850>;
+	qcom,current-ma = <850>;
+	qcom,duration-ms = <500>;
+};
+
+&pm8350c_flash1 {
+	status = "ok";
+	qcom,max-current = <850>;
+	qcom,current-ma = <850>;
+	qcom,duration-ms = <500>;
+};
+
+&pm8350c_flash2 {
+	status = "disabled";
+};
+
+&pm8350c_flash3 {
+	status = "disabled";
+};
+
+&pm8350c_torch0 {
+	status = "ok";
+	qcom,max-current = <100>;
+	qcom,current-ma = <100>;
+};
+
+&pm8350c_torch1 {
+	status = "ok";
+	qcom,max-current = <100>;
+	qcom,current-ma = <100>;
+};
+
+&pm8350c_torch2 {
+	status = "disabled";
+};
+
+&pm8350c_torch3 {
+	status = "disabled";
+};
+
+&pm8350c_switch0 {
+	status = "ok";
+	qcom,led-mask = <3>;
+    qcom,symmetry-en;
+
+};
+
+&pm8350c_switch1 {
+	status = "disbled";
+};
+
+&pm8350c_switch2 {
+	status = "disbled";
+};

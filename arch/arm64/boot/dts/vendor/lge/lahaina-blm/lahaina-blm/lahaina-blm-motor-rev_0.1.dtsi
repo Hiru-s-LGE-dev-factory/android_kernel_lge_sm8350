@@ -1,0 +1,56 @@
+&soc {
+	/* SPI Download */
+	qupv3_se19_spi: spi@894000 {
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se19_spi_active>;
+		pinctrl-1 = <&qupv3_se19_spi_sleep &qupv3_se19_spi_cs_sleep>;
+
+		status = "ok";
+
+		fpga_lattice:lattice@0 {
+			compatible = "lattice,ice40-fpga-mgr";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+			reset-gpios = <&tlmm 74 GPIO_ACTIVE_HIGH>;
+			lreset-gpios = <&tlmm 75 GPIO_ACTIVE_HIGH>;
+			fw = "lattice/motor/motion_bitmap_i2c_by_AP.img";
+			status = "ok";
+		};
+	};
+
+	lge,motor-drv {
+		compatible = "lge,motor-drv";
+		lge,status-gpio = <&tlmm 76 GPIO_ACTIVE_HIGH>; // Enable/Disable check
+		lge,motor-reg = /bits/ 8 <
+			0x02                                              /* ICE40_R_CTRL         (1) */
+			0x56 0x3A                                         /* ICE40_R_FH_TIME_CNT  (2) */
+			0x00 0x68 0x2A                                    /* ICE40_R_FL_TIME_CNT  (3) */
+			0x59 0x39 0x2A 0x1F 0x17                          /* ICE40_R_ACC_RATE     (5) */
+			0x17 0x1F 0x2A 0x39 0x59                          /* ICE40_R_DEC_RATE     (5) */
+			0x00 0x05 0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x1E /* ICE40_R_ACC_CNT     (10) */
+			0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x05 /* ICE40_R_DEC_CNT     (10) */
+			0x13 0x38                                         /* ICE40_R_TOTAL_PPS    (2) */
+			0x00 0x00 0x64                                    /* ICE40_R_AUTO_CNT_W   (3) */
+			0x00 0x00 0x00                                    /* ICE40_R_AUTO_CNT_REC (3) */
+			0x00 0x00                                         /* ICE40_R_CURRENT_PPS  (2) */
+			>;
+		lge,motor-close-reg = /bits/ 8 <
+			0x59 0x39 0x2A 0x1F 0x17                          /* ICE40_R_ACC_RATE     (5) */
+			0x17 0x1F 0x2A 0x39 0x59                          /* ICE40_R_DEC_RATE     (5) */
+			0x00 0x05 0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x1E /* ICE40_R_ACC_CNT     (10) */
+			0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x1E 0x00 0x05 /* ICE40_R_DEC_CNT     (10) */
+			>;
+		status = "ok";
+	};
+};
+
+&qupv3_se1_i2c {
+	status = "ok";
+
+	latticei2c@58 {
+		compatible = "lattice,ice40-i2c";
+		reg = <0x58>;
+		fpga-mgr = <&fpga_lattice>;
+		status = "ok";
+	};
+};

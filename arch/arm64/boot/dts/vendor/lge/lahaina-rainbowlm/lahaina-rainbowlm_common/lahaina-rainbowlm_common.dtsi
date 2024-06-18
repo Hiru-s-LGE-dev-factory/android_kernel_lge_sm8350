@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+ */
+
+&reserved_memory {
+	ramoops: ramoops_region@c8000000 {
+		no-map;
+		reg = <0x0 0xc8000000 0x0 0x100000>;
+	};
+
+	disp_rdump_memory: disp_rdump_region {
+		reg = <0x0 0xe1000000 0x0 0x2300000>;
+		label = "disp_rdump_region";
+	};
+
+	removed_mem: removed_region@d8800000 {
+		no-map;
+		reg = <0x0 0xd8800000 0x0 0x7200000>;
+	};
+};
+
+&soc {
+	ramoops {
+		compatible = "ramoops";
+		reg = <0xc8000000 0x80000>;
+		mem-size = <0x80000>;
+		mem-address = <0xc8000000>;
+		record-size = <4096>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		pmsg-size = <0>;
+		ecc-size = <0>;
+	};
+
+	bootlog {
+		compatible = "bootlog";
+	};
+
+	mcd {
+		compatible = "qcom,mcd";
+		qcom,ce-hw-instance = <0>;
+		qcom,ce-device = <0>;
+		interrupts = <0 737 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "mcd_irq";
+	};
+
+/* gpio 97 is used for tfa speaker amp */
+	pcie1: qcom,pcie@1c08000 {
+		status = "disabled";
+	};
+
+/* remove spss */
+	qcom,spss@1880000 {
+		status = "disabled";
+	};
+
+	spss_utils: qcom,spss_utils {
+		status = "disabled";
+	};
+/* remove TUI VM */
+        qcom,trustedvm@d0800000 {
+                status = "disabled";
+        };
+
+        qcom,guestvm_loader {
+                status = "disabled";
+        };
+
+/* Add Device context for reporting devuce changes to sns daemon*/
+     device_context {
+		status = "ok";
+		compatible = "lge,device_context";
+	};
+
+};
+
+/* Increase ADSP Image Size for modify build error */
+&pil_adsp_mem {
+	reg = <0x0 0x86100000 0x0 0x2500000>;
+};
+
+&pil_slpi_mem {
+	reg = <0x0 0x88600000 0x0 0x1500000>;
+};
+
+&pil_cdsp_mem {
+	reg = <0x0 0x89b00000 0x0 0x1e00000>;
+};
+
+&pil_ipa_fw_mem {
+	reg = <0x0 0x8b900000 0x0 0x10000>;
+};
+
+&pil_ipa_gsi_mem {
+	reg = <0x0 0x8b910000 0x0 0xa000>;
+};
+
+&pil_gpu_mem {
+	reg = <0x0 0x8b91a000 0x0 0x2000>;
+};
+
+&pil_spss_mem {
+	reg = <0x0 0x8ba00000 0x0 0x100000>;
+};
+
+&pil_modem_mem {
+	reg = <0x0 0x8bc00000 0x0 0x10000000>;
+};
+
+&pil_trustedvm_mem {
+        reg = <0x0 0xd0800000 0x0 0x0>;
+};
+

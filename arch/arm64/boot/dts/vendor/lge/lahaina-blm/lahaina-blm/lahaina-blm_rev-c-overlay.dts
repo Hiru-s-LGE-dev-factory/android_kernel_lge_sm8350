@@ -1,0 +1,57 @@
+/dts-v1/;
+/plugin/;
+
+#include "lahaina-blm.dtsi"
+#include "lahaina-blm-sound.dtsi"
+#include "lahaina-blm-motor-rev_b.dtsi"
+#include "lahaina-blm-optical-rev_a.dtsi"
+#include "../lahaina-blm_common/lahaina-blm_common-buttonless-ussys.dtsi"
+#include "../lahaina-blm_camera/lahaina-blm_camera_rev-c.dtsi"
+
+/ {
+    model = "LG Electronics, Blm, rev.C";
+    compatible = "qcom,lahaina-mtp", "qcom,lahaina", "qcom,mtp";
+    qcom,board-id = <0x00080008 0>;
+};
+
+&qupv3_se0_i2c { /* QUP_0 (Flicker) */
+	qcom,clk-freq-out = <400000>;
+	status = "ok";
+	tcs3407@39 {
+		compatible = "ams_tcs3407";
+		reg = <0x39>;
+		/*
+		ams,gpio_irq = <&tlmm 96 0x00>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <96 0x0>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&tcs3407_int_active>;
+		pinctrl-1 = <&tcs3407_int_suspend>;
+		*/
+		qcom,clk-src = "BBCLK2";
+		status = "ok";
+	};
+};
+
+&qupv3_se1_i2c {
+    ak09970@0D {
+        status = "disabled";
+    };
+    ak09973@10 {
+        status = "disabled";
+    };
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		label = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_func_default &key_vol_up_default &smart_cover_default>;
+
+		func {
+			 status = "disabled";
+		};
+	};
+};

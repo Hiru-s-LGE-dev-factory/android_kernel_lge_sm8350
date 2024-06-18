@@ -1,0 +1,27 @@
+&soc {
+    qcom,qbt_handler {
+        compatible = "qcom,qbt-handler";
+        qcom,ipc-gpio = <&tlmm 38 0>;
+        qcom,finger-detect-gpio = <&tlmm 39 0>;
+
+        vcc_spi-supply = <&fingerprint_sensor_vdd>;
+    };
+
+    fingerprint_sensor_vdd: gpio-regulator@f {
+        compatible = "regulator-fixed";
+        reg = <0x0f 0x00>;
+        regulator-name = "fingerprint_sensor_vdd";
+        regulator-min-microvolt = <1800000>;
+        regulator-max-microvolt = <1800000>;
+        regulator-enable-ramp-delay = <135>; // TBD
+        enable-active-high;
+#if 1   // Gpio 8 is from PM8350C at 8350, not msm
+        gpio = <&pm8350c_gpios 8 0>;
+#else
+        gpio = <&tlmm 8 0>;
+#endif
+        pinctrl-names = "default";
+        pinctrl-0 = <&fingerprint_sensor_ldo_gpio>;
+        vin-supply = <&pm8350c_bob>;
+    };
+};
