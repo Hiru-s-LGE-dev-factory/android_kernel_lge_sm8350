@@ -721,11 +721,6 @@ static void verity_work(struct work_struct *w)
 	verity_finish_io(io, errno_to_blk_status(verity_verify_io(io)));
 }
 
-static bool verity_shutting_down(void)
-{
-	return system_state > SYSTEM_RUNNING;
-}
-
 static void verity_end_io(struct bio *bio)
 {
 	struct dm_verity_io *io = bio->bi_private;

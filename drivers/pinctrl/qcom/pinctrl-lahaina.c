@@ -2041,6 +2041,7 @@ static struct msm_pinctrl_soc_data lahaina_pinctrl = {
  */
 static const unsigned int config_mpm_wake_disable_gpios[] = { 151, 202 };
 
+#ifndef CONFIG_LGE_PM
 static void lahaina_pinctrl_config_mpm_wake_disable_gpios(void)
 {
 	unsigned int i;
@@ -2074,6 +2075,7 @@ static int lahaina_pinctrl_no_wake_probe(struct platform_device *pdev)
 
 	return 0;
 }
+#endif
 
 #ifdef CONFIG_LGE_PM
 static int *access_denied_list;
