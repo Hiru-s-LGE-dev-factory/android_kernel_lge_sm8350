@@ -1,6 +1,6 @@
 ifneq ($(CONFIG_ARCH_QTI_VM), y)
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
-ifneq ($(CONFIG_MACH_LGE),y)
+ifneq ($(CONFIG_MACH_LAHAINA_RAINBOWLM),y)
 dtbo-$(CONFIG_ARCH_LAHAINA) += lahaina-rumi-overlay.dtbo \
 	lahaina-mtp-overlay.dtbo \
 	lahaina-mtp-hsp-overlay.dtbo \
