@@ -1,0 +1,19 @@
+#
+# Input misc drivers configuration
+#
+menuconfig INPUT_OTS
+	bool "OTS Sensor devices"
+	help
+	  Say Y here, and a list of Sensor input drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+config LGE_SENSOR_OPTICAL_SENSOR_PIXART
+    tristate "Pixart Optical sensor support"
+    depends on I2C
+    default n
+    help
+        If you say yes here you get support for Pixart's
+        ots sensors.

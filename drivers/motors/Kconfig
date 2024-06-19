@@ -1,0 +1,40 @@
+######################################
+# Rolling Motor Driver configuration #
+######################################
+
+menu "Motor Device Drivers"
+
+config LGE_ROLLING
+	bool "LGE_ROLLING"
+	select LGE_MOTOR_PWM_GENERATOR_LATTICE   if LGE_MOTOR_PWM_GENERATOR="lattice"  
+	select LGE_MOTOR_PWM_GENERATOR_PM8350    if LGE_MOTOR_PWM_GENERATOR="pm8350"
+	help
+	  This option provides the function about motor pwm driver.
+
+# PWM Generator
+config LGE_MOTOR_PWM_GENERATOR
+	string "Default Motor Type"
+	depends on LGE_ROLLING
+	help
+	  Select the motor Type
+
+config LGE_MOTOR_PWM_GENERATOR_LATTICE
+	bool "Default Motor PWM Generator to LATTICE MCU"
+	depends on LGE_ROLLING
+	help
+	  Select the Motor PWM Generator to LATTICE MCU : ice40
+
+config LGE_MOTOR_PWM_GENERATOR_PM8350
+	bool "Default Motor PWM Generator to PM8350"
+	depends on LGE_ROLLING
+	help
+	  Select the Motor PWM Generator to PM8350
+
+# Test volume key control
+config LGE_MOTOR_CONTROL_VOLUME_KEY
+	bool "Test Code for Motor Control Volume key"
+	depends on LGE_ROLLING
+	help
+	  To GPIO Key control
+
+endmenu

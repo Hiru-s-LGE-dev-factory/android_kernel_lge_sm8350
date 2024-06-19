@@ -1,0 +1,13 @@
+#
+# tspdrv subsystem configuration
+#
+
+menu "Tspdrv support"
+
+config TSPDRV
+	tristate "TouchSense driver support"
+	default n
+
+source "drivers/tspdrv/dw7914/Kconfig"
+
+endmenu
