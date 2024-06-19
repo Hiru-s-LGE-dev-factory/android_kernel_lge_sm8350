@@ -1,0 +1,45 @@
+&pm8350c_flash {
+	qcom,flash_0 {
+		qcom,max-current-ma = <425>;
+		qcom,duration-ms = <500>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,flash_1 {
+		qcom,max-current-ma = <425>;
+		qcom,duration-ms = <500>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,flash_2 {
+		qcom,max-current-ma = <425>;
+		qcom,duration-ms = <500>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,flash_3 {
+		qcom,max-current-ma = <425>;
+		qcom,duration-ms = <500>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,torch_0 {
+		qcom,max-current-ma = <50>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,torch_1 {
+		qcom,max-current-ma = <50>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,torch_2 {
+		qcom,max-current-ma = <50>;
+		qcom,ires-ua = <5000>;
+	};
+
+	qcom,torch_3 {
+		qcom,max-current-ma = <50>;
+		qcom,ires-ua = <5000>;
+	};
+};

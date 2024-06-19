@@ -1,0 +1,185 @@
+#include "lahaina-rainbowlm_camera-pinctrl.dtsi"
+
+&soc {
+	camera_front_af_ldo: gpio-regulator@0 {
+		compatible = "regulator-fixed";
+		reg = <0x00 0x00>;
+		regulator-name = "camera_front_af_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 51 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_front_af_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_front_digital_analog_ldo: gpio-regulator@1 {
+		compatible = "regulator-fixed";
+		reg = <0x01 0x00>;
+		regulator-name = "camera_front_digital_analog_ldo";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 58 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_front_digital_analog_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_front_io_ldo: gpio-regulator@2 {
+		compatible = "regulator-fixed";
+		reg = <0x02 0x00>;
+		regulator-name = "camera_front_io_ldo";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 59 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_front_io_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_tele_io_ldo: gpio-regulator@3 {
+		compatible = "regulator-fixed";
+		reg = <0x03 0x00>;
+		regulator-name = "camera_tele_io_ldo";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 73 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_tele_io_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_tele_digital_analog_ldo: gpio-regulator@4 {
+		compatible = "regulator-fixed";
+		reg = <0x04 0x00>;
+		regulator-name = "camera_tele_digital_analog_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 72 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_tele_digital_analog_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_tele_af_ldo: gpio-regulator@5 {
+		compatible = "regulator-fixed";
+		reg = <0x05 0x00>;
+		regulator-name = "camera_tele_af_ldo";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 74 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_tele_af_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_tele_mvdd_ldo: gpio-regulator@6 {
+		compatible = "regulator-fixed";
+		reg = <0x06 0x00>;
+		regulator-name = "camera_tele_mvdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 75 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_tele_mvdd_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_n_mvdd_ldo: gpio-regulator@8 {
+		compatible = "regulator-fixed";
+		reg = <0x08 0x00>;
+		regulator-name = "camera_rear_n_mvdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 78 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_main_mvdd_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_n_lvdd_ldo: gpio-regulator@9 {
+		compatible = "regulator-fixed";
+		reg = <0x09 0x00>;
+		regulator-name = "camera_rear_n_lvdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 77 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_main_lvdd_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_n_avdd_dvdd_ldo: gpio-regulator@a {
+		compatible = "regulator-fixed";
+		reg = <0x0a 0x00>;
+		regulator-name = "camera_rear_n_avdd_dvdd_ldo";
+		regulator-min-microvolt = <2904000>;
+		regulator-max-microvolt = <2904000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 76 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_main_avdd_dvdd_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_w_iovdd_ldo: gpio-regulator@b {
+		compatible = "regulator-fixed";
+		reg = <0x0b 0x00>;
+		regulator-name = "camera_rear_w_iovdd_ldo";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 32 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_wide_io_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_w_avdd1_dvdd_ldo: gpio-regulator@c {
+		compatible = "regulator-fixed";
+		reg = <0x0c 0x00>;
+		regulator-name = "camera_rear_w_avdd1_dvdd_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 34 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_wide_avdd_dvdd_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+
+	camera_rear_w_avdd2_ldo: gpio-regulator@d {
+		compatible = "regulator-fixed";
+		reg = <0x0d 0x00>;
+		regulator-name = "camera_rear_w_avdd2_ldo";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <135>;
+		enable-active-high;
+		gpio = <&tlmm 33 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_sensor_wide_avdd2_ldo_en>;
+		vin-supply = <&BOB>;
+	};
+};

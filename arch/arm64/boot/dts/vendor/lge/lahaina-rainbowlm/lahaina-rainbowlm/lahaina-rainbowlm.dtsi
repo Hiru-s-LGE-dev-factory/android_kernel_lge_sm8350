@@ -1,0 +1,18 @@
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+#include "../lahaina-rainbowlm_common/lahaina-rainbowlm_common.dtsi"
+#include "lahaina-rainbowlm-pinctrl.dtsi"
+#include "lahaina-rainbowlm-connectivity.dtsi"
+#include "lahaina-rainbowlm-nfc.dtsi"
+#include "lahaina-rainbowlm-sar.dtsi"
+#include "lahaina-rainbowlm-touch.dtsi"
+#include "lahaina-rainbowlm-fingerprint.dtsi"
+#include "lahaina-rainbowlm-panel.dtsi"
+#include "lahaina-rainbowlm-usb.dtsi"
+#include "lahaina-rainbowlm-misc.dtsi"
+#include "lahaina-rainbowlm-storage.dtsi"
+#include "lahaina-rainbowlm-mme.dtsi"
+#include "lahaina-rainbowlm-pm.dtsi"
+#include "lahaina-rainbowlm-tdmb.dtsi"

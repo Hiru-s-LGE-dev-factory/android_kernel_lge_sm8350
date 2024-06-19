@@ -1,0 +1,36 @@
+#include "../lahaina-rainbowlm_common/lahaina-rainbowlm_common-nfc.dtsi"
+
+&qupv3_se15_i2c {
+    pn547@28 {
+        status = "disabled";
+    };
+
+    sn100x@28 {
+        compatible = "nxp,sn100x";
+        reg = <0x28>;
+        status = "ok";
+        nxp,gpio_sda = <&tlmm 60 0x00>;
+        nxp,gpio_scl = <&tlmm 61 0x00>;
+        nxp,gpio_ven = <&tlmm 66 0x00>;
+        nxp,gpio_mode = <&tlmm 86 0x00>;
+        nxp,gpio_irq = <&tlmm 87 0x00>;
+        nxp,i2c-pull-up = <1>;
+        qcom,clk-src = "BBCLK2";
+        interrupt-parent = <&tlmm>;
+        interrupts = <87 0>;
+        interrupt-names = "nfc_irq";
+    };
+};
+
+// spi
+&qupv3_se2_spi {
+    status = "ok";
+
+    p73@0 {
+        compatible = "nxp,p73";
+        reg = <0>;
+        status = "ok";
+        spi-max-frequency = <20000000>;
+    };
+};
+

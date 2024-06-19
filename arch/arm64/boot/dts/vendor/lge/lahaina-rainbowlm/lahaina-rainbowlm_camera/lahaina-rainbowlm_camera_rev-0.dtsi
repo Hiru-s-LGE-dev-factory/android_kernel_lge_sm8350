@@ -1,0 +1,128 @@
+#include <dt-bindings/clock/qcom,camcc-lahaina.h>
+#include "lahaina-rainbowlm_camera-flash_rev-0.dtsi"
+#include "lahaina-rainbowlm_camera-regulator_rev-0.dtsi"
+
+&soc {
+	qcom,cam-res-mgr {
+		compatible = "qcom,cam-res-mgr";
+		status = "ok";
+	};
+
+	led_flash: qcom,camera-flash@0 {
+		cell-index = <0>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm8350c_flash0 &pm8350c_flash1>;
+		torch-source = <&pm8350c_torch0 &pm8350c_torch1>;
+		switch-source = <&pm8350c_switch0>;
+		status = "ok";
+	};
+};
+
+&cam_cci0 {
+};
+
+&cam_cci1 {
+	actuator_front: qcom,actuator1 {
+		cell-index = <1>;
+		compatible = "qcom,actuator";
+		cci-master = <0>;
+		cam_vaf-supply = <&camera_front_af_ldo>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <103000>;
+	};
+
+	qcom,cam-sensor1 {
+		cell-index = <1>;
+		compatible = "qcom,cam-sensor";
+		csiphy-sd-index = <5>;
+		sensor-position-roll = <270>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <0>;
+		//actuator-src = <&actuator_front>;
+		//eeprom-src = <&eeprom_vt>;
+		cam_vio-supply = <&camera_front_io_ldo>;
+		cam_vana-supply = <&camera_front_digital_analog_ldo>;
+		cam_clk-supply = <&cam_cc_titan_top_gdsc>;
+		cam_bob-supply = <&pm8350c_bob>;
+		regulator-names = "cam_vio", "cam_vana",
+			"cam_clk", "cam_bob";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 3000000 0 3300000>;
+		rgltr-max-voltage = <1800000 3000000 0 3300000>;
+		rgltr-load-current = <17000 192000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk5_active
+				 &cam_sensor_active_front_rst>;
+		pinctrl-1 = <&cam_sensor_mclk5_suspend
+				 &cam_sensor_suspend_front_rst>;
+		gpios = <&tlmm 105 0>,
+			<&tlmm 115 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK5",
+					"CAM_RESET5";
+		cci-master = <0>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK5_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "nominal";
+		clock-rates = <19200000>;
+	};
+
+	actuator_tele: qcom,actuator3 {
+		cell-index = <3>;
+		compatible = "qcom,actuator";
+		cci-master = <1>;
+		cam_vaf-supply = <&camera_tele_af_ldo>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <3000000>;
+		rgltr-max-voltage = <3000000>;
+		rgltr-load-current = <103000>;
+	};
+
+	qcom,cam-sensor0 {
+		cell-index = <0>;
+		compatible = "qcom,cam-sensor";
+		csiphy-sd-index = <4>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		//actuator-src = <&actuator_tele>;
+		//eeprom-src = <&eeprom_tele>;
+		cam_vio-supply = <&camera_tele_io_ldo>;
+		cam_vana-supply = <&camera_tele_digital_analog_ldo>;
+		cam_clk-supply = <&cam_cc_titan_top_gdsc>;
+		cam_bob-supply = <&pm8350c_bob>;
+		regulator-names = "cam_vio", "cam_vana",
+			"cam_clk", "cam_bob";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 0 3300000>;
+		rgltr-max-voltage = <1800000 2800000 0 3300000>;
+		rgltr-load-current = <17000 192000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk2_active
+				 &cam_sensor_active_tele_rst>;
+		pinctrl-1 = <&cam_sensor_mclk2_suspend
+				 &cam_sensor_suspend_tele_rst>;
+		gpios = <&tlmm 102 0>,
+			<&tlmm 117 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK2",
+					"CAM_RESET2";
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK2_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "nominal";
+		clock-rates = <19200000>;
+	};
+};

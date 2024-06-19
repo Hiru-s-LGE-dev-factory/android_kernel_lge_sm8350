@@ -1,0 +1,109 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&qupv3_se1_i2c {
+    status = "ok";
+
+    ak09970@0D {
+        compatible = "akm,akm09970";
+        reg = <0x0D>; /* i2c address */
+        interrupt-parent = <&tlmm>;
+        interrupts = <91 0x2>;
+        pinctrl-names = "default", "sleep";
+        pinctrl-0 = <&ak09970_int_active &ak09970_en_active>;
+        pinctrl-1 = <&ak09970_int_suspend &ak09970_en_suspend>;
+
+        akm,gpio_rstn=<&tlmm 42 0x00>;
+        akm,gpio_irq=<&tlmm 91 0x00>;
+        akm,measure-freq-hz=<100>;
+        akm,DRDY_event=<0>;
+        akm,ERRXY_event=<1>;
+        akm,ERRADC_event=<1>;
+        akm,INT_event=<1>;
+        akm,ODINT_event=<1>;
+        akm,drive_setting=<0>;
+        akm,measurement_range=<0>;
+        akm,threshold_X=<4000 3500 0 0>;
+        akm,threshold_Y=<0 0 0 0>;
+        akm,threshold_Z=<0 0 0 0>;
+        akm,switch_event=<1 0 0 0 0 0>;
+
+        status = "disabled";
+    };
+
+    ak09973@10 {
+        compatible = "ak,ak09973";
+        reg = <0x10>; /* i2c address */
+        interrupt-parent = <&tlmm>;
+        interrupts = <91 0x3>;
+        pinctrl-names = "default", "sleep";
+        pinctrl-0 = <&ak09973_int_active>;
+        pinctrl-1 = <&ak09973_int_suspend>;
+
+        akm,gpio_irq=<&tlmm 91 0x00>;
+        akm,DRDY_event=<0>;
+        akm,ERR_event=<1>;
+        akm,POL_setting=<0>;
+        akm,ODINT_event=<1>;
+        akm,drive_setting=<0>;
+        akm,measure-freq-hz=<100>;
+        akm,measurement_range=<0>;
+        akm,threshold_X=<2500 2000>;
+        akm,threshold_Y=<0 0>;
+        akm,threshold_Z=<0 0>;
+        akm,threshold_V=<0 0>;
+        akm,switch_event=<1 0 0 0>;
+
+        status = "ok";
+    };
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		label = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_func_default &key_vol_up_default &smart_cover_default>;
+
+		func {
+			 label = "function";
+			 gpios = <&pm8350_gpios 2 GPIO_ACTIVE_LOW>;
+			 linux,input-type = <1>;
+			 linux,code = <KEY_SCREEN>;
+			 gpio-key,wakeup;
+			 debounce-interval = <15>;
+			 linux,can-disable;
+		};
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8350_gpios 6 GPIO_ACTIVE_LOW>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		smart_cover {
+			label = "smart_cover";
+			gpios = <&tlmm 80 GPIO_ACTIVE_LOW>;
+			linux,input-type = <5>;
+			linux,code = <222>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+	};
+};

@@ -1,0 +1,52 @@
+/dts-v1/;
+/plugin/;
+
+#include "lahaina-blm.dtsi"
+#include "lahaina-blm-sound.dtsi"
+#include "lahaina-blm-motor-rev_0.1.dtsi"
+#include "lahaina-blm-optical-rev_0.1.dtsi"
+#include "../lahaina-blm_camera/lahaina-blm_camera_hdk.dtsi"
+#include "../lahaina-blm_common/lahaina-blm_common-flicker.dtsi"
+
+/ {
+    model = "LG Electronics, Blm, rev.0.1";
+    compatible = "qcom,lahaina-mtp", "qcom,lahaina", "qcom,mtp";
+    qcom,board-id = <0x00040008 0>;
+};
+
+&soc {
+    gpio_keys {
+        compatible = "gpio-keys";
+        label = "gpio-keys";
+
+        pinctrl-names = "default";
+        pinctrl-0 = <&key_vol_up_default &smart_cover_default>;
+
+        silde_detect {
+                status = "disabled";
+        };
+    };
+};
+
+&qupv3_se1_i2c {
+    ak09970@0D {
+        status = "disabled";
+    };
+    ak09973@10 {
+        status = "disabled";
+    };
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		label = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_func_default &key_vol_up_default &smart_cover_default>;
+
+		func {
+			 status = "disabled";
+		};
+	};
+};

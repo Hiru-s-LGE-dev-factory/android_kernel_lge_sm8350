@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+#include "lahaina-rainbowlm.dtsi"
+#include "lahaina-rainbowlm-sound_rev-0.dtsi"
+#include "../lahaina-rainbowlm_camera/lahaina-rainbowlm_camera_rev-0.dtsi"
+
+/ {
+    model = "LG Electronics, Rainbowlm, rev0.0";
+    compatible = "qcom,lahaina-mtp", "qcom,lahaina", "qcom,mtp";
+    qcom,board-id = <0x00030008 0>;
+};
+
+&qupv3_se4_i2c {
+       sw82906@28 {
+               i2c-gpio = <&pm8350c_gpios 6 0x00>;
+       };
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		label = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_func_default &key_vol_up_default &smart_cover_default>;
+
+		func {
+			status = "disabled";
+		};
+	};
+};

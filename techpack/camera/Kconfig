@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config LGE_CAMERA
+	bool "LGE Camera"
+	help
+		Support for LGE CAMERA.
+
+config BLM_CAMERA
+	bool "BLM Camera"
+	help
+		Support for LGE BLM CAMERA.
+
+config RAINBOWLM_CAMERA
+	bool "RAINBOWLM Camera"
+	help
+		Support for LGE RAINBOWLM CAMERA.
+
