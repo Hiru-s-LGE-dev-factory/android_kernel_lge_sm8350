@@ -1,0 +1,25 @@
+//#include "../../../qcom/lahaina-audio-overlay.dtsi"
+
+#include "../lahaina-blm_common/lahaina-blm_common-sound.dtsi"
+#include "../lahaina-blm_common/lahaina-blm_common-sound-tfa9878.dtsi"
+#include "../lahaina-blm_common/lahaina-blm_common-sound-vibrator.dtsi"
+#include "../lahaina-blm_common/lahaina-blm_common-sound-fmradio.dtsi"
+
+&lahaina_snd {
+	asoc-codec  = <&stub_codec>, <&bolero>,
+				<&wcd938x_codec>,<&ext_disp_audio_codec>, 
+				<&tfa98xx_spk1>, <&tfa98xx_spk2>;
+	
+	asoc-codec-names = "msm-stub-codec.1", "bolero_codec",
+				"wcd938x_codec", "msm-ext-disp-audio-codec-rx",
+				"tfa98xx-codec.0034","tfa98xx-codec.0035";
+};
+
+&dai_mi2s2 {
+    qcom,msm-mi2s-tx-lines = <1>;
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&tert_mi2s_sck_active &tert_mi2s_ws_active
+            &tert_mi2s_sd0_active>;
+    pinctrl-1 = <&tert_mi2s_sck_active &tert_mi2s_ws_active
+            &tert_mi2s_sd0_active>;
+};

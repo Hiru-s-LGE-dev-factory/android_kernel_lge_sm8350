@@ -1,0 +1,124 @@
+#include "../../qcom/lahaina-pmic-overlay.dtsi"
+#include "../../qcom/lahaina-thermal-overlay.dtsi"
+#include <dt-bindings/clock/qcom,camcc-lahaina.h>
+#include <dt-bindings/clock/qcom,videocc-lahaina.h>
+#include <dt-bindings/clock/qcom,gcc-lahaina.h>
+#include <dt-bindings/interconnect/qcom,lahaina.h>
+#include "../../qcom/lahaina-thermal.dtsi"
+
+&pm8350_rear_tof_therm_default {
+	status = "disabled";
+};
+
+&pmk8350_vadc {
+	pm8350_msm_therm {
+		status = "disabled";
+	};
+
+	pm8350_cam_flash_therm {
+		status = "disabled";
+	};
+
+	pm8350_hot_pocket_therm {
+		status = "disabled";
+	};
+
+	pm8350_wide_rfc_therm {
+		status = "disabled";
+	};
+
+	pm8350_rear_tof_therm {
+		status = "disabled";
+	};
+
+	pm8350b_usb_conn_therm {
+		status = "disabled";
+	};
+
+	pm8350b_wl_chg_therm {
+		status = "disabled";
+	};
+
+	pmk8350_xo_therm {
+		status = "disabled";
+	};
+};
+
+&socd_trip {
+	temperature = <100>;
+};
+
+&thermal_zones {
+	skin-msm-therm-usr {
+		status = "disabled";
+	};
+
+	camera-therm-usr {
+		status = "disabled";
+	};
+
+	hot-pock-therm-usr {
+		status = "disabled";
+	};
+
+	rear-cam-therm-usr {
+		status = "disabled";
+	};
+
+	tof-therm-usr {
+		status = "disabled";
+	};
+
+	conn-therm-usr {
+		status = "disabled";
+	};
+
+	wlc-therm-usr {
+		status = "disabled";
+	};
+};
+
+&soc {
+	lge,gpio-debug {
+		compatible = "lge,gpio-debug";
+		reg = <0xF100000 0x900000>;
+		reg-names = "tlmm-base";
+		lge,n-msm-gpio = <0xCA>; /* SM8350 0 to 202 */
+	};
+
+	lge,pon-backup {
+		compatible = "lge,pon-backup";
+		lge,pmic-name =
+			"PMK8350",
+			"PM8350",
+			"PM8350C",
+			"PM8350B",
+			"PMR735A",
+			"PMR735B";
+		lge,regulator-table = <
+			/*                 SPMS LDO BOB */
+			/* 0 - PMK8350 */    0   0   0
+			/* 1 - PM8350  */   12  10   0
+			/* 2 - PM8350C */   10  13   1
+			/* 3 - PM8350B */    0   1   0
+			/* 4 - PMR735A */    3   7   0
+			/* 5 - PMR735B */    0  12   0
+			>;
+	};
+
+	lge,monitor-thermal {
+		compatible = "lge,monitor-thermal";
+		lge,poll-time = <30000>;
+	};
+
+	lge,prmd {
+		compatible = "lge,prm";
+		lge,vfps-enabled;
+		lge,sben-enabled;
+		lge,fbcn-enabled;
+	};
+
+	lge_vts: lge-vts {
+		compatible = "lge,vts";
+	};
+};

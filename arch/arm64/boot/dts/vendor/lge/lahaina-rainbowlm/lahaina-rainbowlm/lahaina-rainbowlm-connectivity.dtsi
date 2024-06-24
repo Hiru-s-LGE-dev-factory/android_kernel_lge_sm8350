@@ -1,0 +1,6 @@
+#include "../lahaina-rainbowlm_common/lahaina-rainbowlm_common-connectivity.dtsi"
+
+&wil6210 {
+    status = "ok";
+};
+

@@ -1,0 +1,300 @@
+&soc {
+	lge-veneer-psy {
+		compatible = "lge,veneer-psy";
+		status = "ok";
+		highspeed-threshold-mv-wired = <15000>;
+		highspeed-threshold-mv-wireless = <6750>;
+		highspeed-threshold-mv-wireless-15w = <9000>;
+
+		charging-ceiling {
+			/*	               iusb ibat  idc  : 0 means UNCEILING */
+			lge,unknown = <   0    0    0>;
+			lge,float   = < 500  500    0>;
+			lge,none    = <   0    0    0>;
+
+			lge,dcp     = <1500    0    0>;
+			lge,10k     = <3000    0    0>;
+			lge,22k     = <1500    0    0>;
+			lge,qc2     = <1800    0    0>;
+			lge,qc3     = <1800    0    0>;
+
+			lge,usb2    = < 500    0    0>;
+			lge,usb3    = < 900    0    0>;
+			lge,cdp     = <1500 1500    0>;
+			lge,pd      = <   0    0    0>;
+			lge,pps     = <   0    0    0>;
+
+			lge,56k     = <1500  500    0>;
+			lge,130k    = <1500  500    0>;
+			lge,910k    = <1500  500    0>;
+
+			lge,w5w     = <   0    0  900>;
+			lge,w9w     = <   0    0  900>;
+			lge,w15w    = <   0    0 1000>;
+		};
+
+		protection-battemp {
+			lge,threshold-degc-upto-cool = <30>;
+			lge,threshold-degc-upto-good = <120>;
+			lge,threshold-degc-upto-warm = <450>;
+			lge,threshold-degc-upto-hot = <550>;
+			lge,threshold-degc-downto-warm = <520>;
+			lge,threshold-degc-downto-good = <430>;
+			lge,threshold-degc-downto-cool = <100>;
+			lge,threshold-degc-downto-cold = <0>;
+
+			lge,period-ms-emergency	= <10000>;
+			lge,period-ms-warning	= <30000>;
+			lge,period-ms-normal	= <60000>;
+
+			// parameters for warning status cool and warm
+			lge,cool-mv-alert	= <4000>;
+			lge,cool-ma-alert	= <500>;	 // fixed 500 mA over batvolt 4V
+			lge,cool-ma-pct		= <30>;		 // c-rate, means 0.3C rate under batvolt 4V
+
+			lge,warm-mv-float	= <4000>;
+			lge,warm-ma-pct		= <50>;		 // c-rate, means 0.5C rate
+
+			// parameters for battery protection at chilly status
+			lge,chilly-status-support;
+			lge,chilly-degc-lowerbound = <0>;
+			lge,chilly-degc-upperbound = <170>;
+			lge,chilly-mv-alert    = <4000>;
+			lge,chilly-mv-bound    = <200>;
+			lge,chilly-ma-alert    = <1300>;  // mA, means 0.3C rate over batvol 4V
+			lge,chilly-ma-pct      = <50>;    // c-rate, means 0.5C rate under batvol 4V
+		};
+
+		lge-battery-supplement {
+			capacity-scaling-enable;
+			capacity-raw-full = <9700>;
+			/* high volt temperature */
+			lge,hvt-enable;
+			lge,hvt-timer = <450000>;          /* wait time by 7.5min for next step */
+			lge,hvt-max-count = <8>;
+			lge,hvt-upper-temp = <
+				360   370   380   390
+				400   400   400   400
+				400   400   400   400 >;
+			lge,hvt-lower-temp = <350>;
+			lge,hvt-trigger-soc-entry = <
+				9750  9600  9450  9300               /* 4.31V - 93% - model variation */
+				9175  9050  8925  8800               /* 4.25V - 88% - model variation */
+				8675  8550  8425  8300 >;            /* 4.20V - 83% - model variation */
+			lge,hvt-exit-voltage = <3900>;           /* voltage of exiting hvt        */
+			lge,hvt-enter-voltage = <4200>;          /* min voltage for entering hvt  */
+			/* for extention-qti */
+			lge,hvt-rescale-margin = <250>;          /* -2.5% */
+			lge,hvt-fast-rescale-margin = <2500>;    /* 97.5% - 25% = 72.5% */
+		};
+
+		/* it's for direct battery cell voltage sensing */
+		protection-batvolt-v2 {
+			lge,threshold-vbat-limit = <4200>;
+			lge,threshold-ibat-rate = <60>;	// means 0.6C rate
+			lge,threshold-ibat-cv-rate = <21>;	// means 0.21C = 4850 * 0.21 = 1018mA
+
+			lge,step-ibat-ma = <200>;
+			lge,step-poll-ms = <5000>;
+		};
+
+		protection-showcase {
+			lge,soc-range-vzw     = <30 35>;
+			lge,soc-range-default = <45 50>;
+		};
+
+		unified-nodes {
+			lge,feature-charging-parallel = <1>;
+			lge,feature-charging-highspeed = <1>;
+
+			lge,restrict-charging {
+				// restrict-values 0 means UNCEILING
+
+				lge,restrict@0 {
+					restrict-name = "LCD";
+					restrict-type = "ibat";
+					restrict-commands = "ON", "OFF";
+					restrict-values = <1500      0>;
+				};
+				lge,restrict@1 {
+					restrict-name = "CALL";
+					restrict-type = "ibat";
+					restrict-commands = "ON", "OFF";
+					restrict-values = <1000      0>;
+				};
+				lge,restrict@2 {
+					restrict-name = "UHDREC";
+					restrict-type = "ibat";
+					restrict-commands = "ON", "OFF";
+					restrict-values = < 500      0>;
+				};
+			};
+
+			lge,fake-battery {
+				fakebatt-psy = "battery";		// What 'psy' does implement(or support) the fake battery?
+				fakebatt-temperature = <400>;
+				fakebatt-mvoltage = <4000>;
+				fakebatt-capacity = <80>;
+			};
+
+			lge,battery-age {
+				battage-psy = "battery";		// What 'psy' does implement(or support) the battery age?
+			};
+
+			lge,thermal-zone {
+				xo-therm = "xo-therm-usr";
+				bd-therm = "quiet-therm-usr";
+			};
+
+			lge,ttf {
+				ttf-psy = "battery";	// What 'psy' does implement(or support) the time to full now?
+			};
+		};
+
+		unified-sysfs {
+			lge,symlink-map =
+				/* group , user_node, kernel node */
+				/* Charger */
+				"charger",                     "ac_online", "/sys/devices/platform/lge-unified-nodes/ac_online",
+				"charger",                    "usb_online", "/sys/devices/platform/lge-unified-nodes/usb_online",
+				"charger",                       "present", "/sys/class/power_supply/usb/present",
+				"charger",                    "wlc_online", "/sys/class/power_supply/dc/online",
+				"charger",                          "type", "/sys/devices/platform/lge-unified-nodes/usb_real_type",
+				"charger",                   "usb_pd_type", "/sys/devices/platform/lge-unified-nodes/usb_real_type",
+				"charger",                      "time_out", "/sys/devices/platform/lge-unified-nodes/safety_timer_enabled",
+				"charger",              "charging_enabled", "/sys/devices/platform/lge-unified-nodes/charging_enable",
+				"charger",                  "ibat_current", "/sys/class/power_supply/battery/current_now",
+				"charger",                  "ichg_current", "/sys/class/power_supply/usb/current_max",
+				"charger",                  "iusb_control", "NULL",
+				"charger",            "thermal_mitigation", "NULL",
+				"charger",        "wlc_thermal_mitigation", "/sys/class/power_supply/wireless/current_max",
+				"charger",       "usb_parallel_chg_status", "NULL",
+				"charger", "usb_parallel_charging_enabled", "/sys/devices/platform/lge-unified-nodes/parallel_enabled",
+				"charger", "factory_parallel_charger_test", "/sys/devices/platform/lge-unified-nodes/support_fastpl",
+				"charger",            "moisture_detection", "sys/class/qcom-battery/moisture_detection_status",
+				"charger",           "restricted_charging", "/sys/devices/platform/lge-unified-nodes/charging_restriction",
+				"charger",              "ibat_max_current", "/sys/devices/platform/lge-unified-nodes/thermald_ibat",
+				"charger",                       "chgstep", "/sys/devices/platform/lge-unified-nodes/charging_step",
+				"charger",               "connection_type", "NULL",
+				"charger",                       "fastchg", "/sys/devices/platform/lge-unified-nodes/charger_highspeed",
+				"charger",         "input_current_settled", "/sys/devices/platform/lge-unified-nodes/input_current_settled",
+				"charger",            "store_demo_enabled", "NULL",
+				"charger",     "wireless_charging_enabled", "NULL",
+				"charger",                 "input_suspend", "/sys/devices/platform/lge-unified-nodes/input_suspend",
+				"charger",                  "incompatible", "/sys/devices/platform/lge-unified-nodes/charger_incompatible",
+				"charger",                    "hvdcp_fake", "/sys/devices/platform/lge-unified-nodes/fake_hvdcp",
+				"charger",               "usb_current_max", "/sys/devices/platform/lge-unified-nodes/fake_sdpmax",
+				"charger",               "fastchg_support", "/sys/devices/platform/lge-unified-nodes/support_fastchg",
+				"charger",                    "usbid_type", "/sys/devices/platform/lge-unified-nodes/resistance_id",
+				"charger",          "typec_cc_orientation", "/sys/devices/platform/lge-unified-nodes/typec_cc_orientation",
+				"charger",          "typec_moisture_en", "/sys/devices/platform/lge-unified-nodes/typec_moisture_en",
+				"charger",                 "ccd_batchg_en", "/sys/devices/platform/lge-unified-nodes/ccd_batchg_en",
+				"charger",             "ccd_input_suspend", "/sys/devices/platform/lge-unified-nodes/ccd_input_suspend",
+				"charger",                       "ccd_icl", "/sys/devices/platform/lge-unified-nodes/ccd_icl",
+				"charger",                       "ccd_fcc", "/sys/devices/platform/lge-unified-nodes/ccd_fcc",
+				"charger",                    "ccd_vfloat", "/sys/devices/platform/lge-unified-nodes/ccd_vfloat",
+				"charger",                     "aicl_done", "/sys/devices/platform/lge-unified-nodes/aicl_done",
+				/* ADC/MPP */
+				"adc",              "thermal", "/sys/class/thermal/",
+				"adc",             "xo_therm", "/sys/bus/iio/devices/iio:device0/in_temp_xo_therm_input",
+				"adc",           "batt_therm", "/sys/class/power_supply/battery/temp",
+				"adc",              "batt_id", "/sys/devices/platform/lge-unified-nodes/battery_valid",
+				"adc",            "pa_therm1", "/sys/bus/iio/devices/iio:device0/in_temp_pa0_therm_input",
+				"adc",            "pa_therm2", "/sys/bus/iio/devices/iio:device0/in_temp_pa1_therm_input",
+				"adc",            "pa_therm3", "/sys/bus/iio/devices/iio:device0/in_temp_pa2_therm_input",
+				"adc",          "quiet_therm", "/sys/bus/iio/devices/iio:device0/in_temp_quiet_therm_input",
+				"adc",               "usb_in", "/sys/class/power_supply/usb/voltage_now",
+				"adc",                "vcoin", "NULL",
+				"adc",              "vph_pwr", "/sys/bus/iio/devices/iio:device0/in_voltage_pm8350_vph_pwr_input",
+				"adc",               "usb_id", "/sys/devices/platform/lge-unified-nodes/charger_usbid",
+				"adc",             "usb_edge", "NULL",
+				"adc",                 "pmic", "/sys/bus/iio/devices/iio:device0/in_temp_pm8350_die_temp_input",
+				"adc",                  "vts", "/sys/bus/platform/drivers/monitor-thermal/soc:lge,monitor-thermal/vts_temp",
+				"adc",            "upper_pcb", "/sys/devices/platform/lge-unified-nodes/upper_pcb",
+				"adc",              "low_pcb", "/sys/devices/platform/lge-unified-nodes/low_pcb",
+				/* Battery */
+				"battery",           "capacity", "/sys/class/power_supply/battery/capacity",
+				"battery",             "health", "/sys/class/power_supply/battery/health",
+				"battery",            "present", "/sys/class/power_supply/battery/present",
+				"battery",        "pseudo_batt", "/sys/devices/platform/lge-unified-nodes/fake_battery",
+				"battery",             "status", "/sys/class/power_supply/battery/status",
+				"battery",         "status_raw", "/sys/class/power_supply/battery/status_raw",
+				"battery",               "temp", "/sys/class/power_supply/battery/temp",
+				"battery",      "valid_batt_id", "/sys/devices/platform/lge-unified-nodes/battery_valid",
+				"battery",        "voltage_now", "/sys/class/power_supply/battery/voltage_now",
+				"battery",            "vzw_chg", "/sys/devices/platform/lge-unified-nodes/charger_verbose",
+				"battery",       "raw_capacity", "/sys/devices/platform/lge-unified-nodes/raw_capacity",
+				"battery",          "condition", "/sys/devices/platform/lge-unified-nodes/battery_condition",
+				"battery",        "battery_age", "/sys/devices/platform/lge-unified-nodes/battery_age",
+				"battery",  "battery_age_level", "/sys/devices/platform/lge-unified-nodes/battery_age",
+				"battery",              "cycle", "/sys/devices/platform/lge-unified-nodes/battery_cycle",
+				"battery",       "battery_type", "/sys/class/power_supply/battery/model_name",
+				"battery",        "charge_full", "/sys/class/power_supply/battery/charge_full",
+				"battery", "charge_full_design", "/sys/class/power_supply/battery/charge_full_design",
+				"battery",     "charge_now_raw", "/sys/class/power_supply/battery/charge_counter",
+				"battery",       "ttf_capacity", "/sys/devices/platform/lge-unified-nodes/ttf_capacity",
+				"battery",   "time_to_full_now", "/sys/class/power_supply/battery/time_to_full_avg",
+				"battery",     "bsm_timetofull", "/sys/devices/platform/lge-unified-nodes/bsm_timetofull",
+				/* LCD Backlight */
+				"lcd",           "brightness", "/sys/class/backlight/panel0-backlight/brightness",
+				"lcd",       "max_brightness", "/sys/class/backlight/panel0-backlight/max_brightness",
+				"lcd_ex",        "brightness", "NULL",
+				"lcd_ex",    "max_brightness", "NULL",
+				/* KEY LED */
+				"key_led",   "red_brightness", "/sys/class/leds/red/brightness",
+				"key_led", "green_brightness", "/sys/class/leds/green/brightness",
+				"key_led",  "blue_brightness", "/sys/class/leds/blue/brightness",
+				/* CPU */
+				"cpu",       "cpu_idle_modes", "NULL",
+				/* GPU */
+				"gpu",                 "busy", "/sys/class/kgsl/kgsl-3d0/gpubusy",
+				"gpu",               "gpuclk", "/sys/class/kgsl/kgsl-3d0/gpuclk",
+				/* PLATFORM */
+				"platform",       "speed_bin", "NULL",
+				"platform",         "pvs_bin", "NULL",
+				"platform",     "power_state", "NULL",
+				"platform",   "poweron_alarm", "/sys/module/qpnp_rtc/parameters/poweron_alarm",										//FIXED_ME
+				"platform",         "pcb_rev", "/sys/bus/iio/devices/iio:device0/in_voltage_pmic_hardware_id_input",
+				"platform",       "smpl_boot", "/sys/module/lge_smpl_count/parameters/smpl_boot",
+				/* testmode */
+				"testmode",            "temp", "/sys/class/power_supply/battery/temp",
+				"testmode",     "voltage_now", "/sys/class/power_supply/battery/voltage_now",
+				"testmode",          "usb_id", "/sys/devices/platform/lge-unified-nodes/charger_usbid",
+				"testmode",         "batt_id", "/sys/devices/platform/lge-unified-nodes/battery_valid",
+				"testmode",         "fuelval", "/sys/class/power_supply/battery/capacity",
+				"testmode",        "xo_therm", "/sys/devices/platform/lge-unified-nodes/factory_xo_therm",
+				"testmode",          "charge", "/sys/devices/platform/lge-unified-nodes/battery_charging_enabled",
+				"testmode",          "chcomp", "/sys/devices/platform/lge-unified-nodes/charging_completed",
+				"testmode",           "usbin", "/sys/class/power_supply/usb/voltage_now",
+				"testmode",       "pa_therm1", "/sys/bus/iio/devices/iio:device0/in_temp_pa0_therm_input",
+				"testmode",       "pa_therm2", "/sys/bus/iio/devices/iio:device0/in_temp_pa1_therm_input",
+				"testmode",       "pa_therm3", "/sys/bus/iio/devices/iio:device0/in_temp_pa2_therm_input",
+				"testmode",       "bd_therm2", "/sys/devices/platform/lge-unified-nodes/factory_bd_therm",
+				"testmode",           "vcoin", "NULL",
+				"testmode",         "vph_pwr", "/sys/bus/iio/devices/iio:device0/in_voltage_pm8350_vph_pwr_input",
+				"testmode",     "current_now", "/sys/class/power_supply/battery/current_now",
+				"testmode",     "current_max", "/sys/class/power_supply/usb/current_max",
+				"testmode",         "pcb_rev", "/sys/bus/iio/devices/iio:device0/in_voltage_pmic_hardware_id_input",
+				"testmode",      "chgmodeoff", "/sys/devices/platform/lge-unified-nodes/input_suspend",
+				"testmode",         "fuelrst", "/sys/class/power_supply/battery/present",
+				"testmode",        "rtc_time", "/dev/rtc0",
+				"testmode",           "pmrst", "NULL",
+				"testmode",        "battexit", "/sys/class/power_supply/battery/present",
+				"testmode",  "hardreset_mode", "NULL",
+				/* ps feature*/
+				"psfeature",     "vfps_ratio", "/sys/class/power/vfps/vfps_ratio",
+				"psfeature",           "vfps", "/sys/class/power/vfps/vfps",
+				"psfeature",      "vfps_fcnt", "/sys/class/power/vfps/vfps_fcnt",
+				"psfeature",  "triton_policy", "NULL",
+				"psfeature",   "cancun_is_cm", "NULL",
+				"regulator",       "vreg_bob", "/sys/devices/platform/soc/soc:lrmc/bob_mode";
+		};
+
+		veneer-workaround {
+			lge,enable-rerun-apsd-sdp;
+			lge,enable-faster-try;
+			lge,enable-support-weak-supply;
+			lge,enable-avoid-inrush-current;
+		};
+	};
+};

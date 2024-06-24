@@ -1,0 +1,141 @@
+&tlmm {
+	cam_sensor_active_front_rst: cam_sensor_active_front_rst {
+		mux {
+			pins = "gpio115";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio115";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_suspend_front_rst: cam_sensor_suspend_front_rst {
+		mux {
+			pins = "gpio115";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio115";
+			bias-pull-down;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_front_af_ldo_en: cam_sensor_front_af_ldo_en {
+		mux {
+			pins = "gpio51";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio51";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_front_digital_analog_ldo_en: cam_sensor_front_digital_analog_ldo_en {
+		mux {
+			pins = "gpio58";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio58";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+    cam_sensor_front_io_ldo_en: cam_sensor_front_io_ldo_en {
+		mux {
+			pins = "gpio59";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio59";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_active_tele_rst: cam_sensor_active_tele_rst {
+		mux {
+			pins = "gpio117";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio117";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_suspend_tele_rst: cam_sensor_suspend_tele_rst {
+		mux {
+			pins = "gpio117";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio117";
+			bias-pull-down;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_io_ldo_en: cam_sensor_tele_io_ldo_en {
+		mux {
+			pins = "gpio73";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio73";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_digital_analog_ldo_en: cam_sensor_tele_digital_analog_ldo_en {
+		mux {
+			pins = "gpio72";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio72";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_af_ldo_en: cam_sensor_tele_af_ldo_en {
+		mux {
+			pins = "gpio74";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio74";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+};

@@ -1,0 +1,91 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&tlmm {
+	touch_point_hub_intr {
+		touch_point_hub_intr_default: touch_point_hub_intr_default {
+			mux {
+				pins = "gpio11";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio11";
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-up;
+			};
+		};
+	};
+	touch_point_hub_rst {
+		touch_point_hub_rst_default: touch_point_hub_rst_default {
+			mux {
+				pins = "gpio104";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio104";
+				drive-strength = <2>;
+				bias-disable;
+				output-low;
+			};
+		};
+	};
+};
+
+&qupv3_se17_i2c {
+	status = "ok";
+	touch_point_hub@50 {
+		compatible = "ussys,touch_point_hub";
+		reg = <0x50>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_point_hub_intr_default &touch_point_hub_rst_default>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <11 0x2002>;
+		touch_point_hub,irq-gpios = <&tlmm 11 0>;
+		touch_point_hub,rst-gpios = <&tlmm 104 0>;
+		/*
+		 * If enabled, AP reset gpio pin(LOW->HIGH->LOW) will reset hub(typically, there is NMOS between AP reset gpio and MCU reset pin in this case).
+		 * If disabled, AP reset pin(HIGH->LOW->HIGH) will reset hub.
+		 */
+		touch_point_hub,rst_high_active;
+		/*
+		 * LDO takes some convert time for 1.8V and mcu reset pin.
+		 */
+		touch_point_hub,rst_convert_time_ms = <0>;//5//20
+		linux,input-code-a0_0_a1_0 = <116>;//i2c_addr:0x27 -> "Power"
+		linux,input-code-a0_0_a1_1 = <115>;//i2c_addr:0x2F -> "Vol+"
+		linux,input-code-a0_1_a1_0 = <102>;//i2c_addr:0x37 -> "Home"
+		linux,input-code-a0_1_a1_1 = <114>;//i2c_addr:0x3F -> "Vol-"
+
+		/*
+		 * ChipMode setting:
+		 * 0 -> USP+ZForce@Sensor
+		 * 1 -> USP-Only
+		 * 3 -> USP+ZForce@Hub
+		 */
+		touch_point_hub,chip_mode = <0>;
+		/*
+		 * default haptic ON/OFF setting
+		 * ON -> 1
+		 * OFF -> 0
+		 */
+		touch_point_hub,default-haptic-a0_0_a1_0 = <1>;//i2c_addr:0x27
+		touch_point_hub,default-haptic-a0_0_a1_1 = <1>;//i2c_addr:0x2F
+		touch_point_hub,default-haptic-a0_1_a1_0 = <1>;//i2c_addr:0x37
+		touch_point_hub,default-haptic-a0_1_a1_1 = <1>;//i2c_addr:0x3F
+		touch_point_hub,known_num_of_keys = <2>;
+		wakeup-source;
+	};
+};

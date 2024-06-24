@@ -1,0 +1,107 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+		pmx_fm_int {
+			fm_int_default: fm_int_default {
+				mux {
+					pins = "gpio50";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio50";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+			fm_int_active: fm_int_active {
+				mux {
+					pins = "gpio50";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio50";
+					drive-strength = <16>;
+					bias-pull-up;
+				};
+			};
+
+		fm_int_suspend: fm_int_suspend {
+				mux {
+					pins = "gpio50";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio50";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+		};
+	pmx_fm_lna {
+		fm_lna_active: fm_lna_active {
+				   mux {
+					   pins = "gpio119";
+					   function = "gpio";
+				   };
+				   config {
+					   pins = "gpio119";
+					   drive-strength = <2>;
+					   output-low;
+					   bias-disable;
+				   };
+			   };
+
+		fm_lna_suspend: fm_lna_suspend {
+					mux {
+						pins = "gpio119";
+						function = "gpio";
+					};
+					config {
+						pins = "gpio119";
+						drive-strength = <2>;
+						bias-pull-down;
+					};
+				};
+		};
+};
+
+&qupv3_se13_i2c {
+	status = "okay";
+	nq@64 {
+		compatible = "rtc6226";
+		status = "okay";
+		reg = <0x64>;
+		pinctrl-names = "default","pmx_fm_active","pmx_fm_suspend";
+		pinctrl-0 = <&fm_int_default>,<&fm_lna_suspend>;
+		pinctrl-1 = <&fm_int_active>,<&fm_lna_active>;
+		pinctrl-2 = <&fm_int_suspend>,<&fm_lna_suspend>;
+		fmint-gpio = <&tlmm 50 0>;
+		rtc,lna-en-gpio = <&tlmm 119 0>;
+		interrupts = <0 1>;
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0xffffffff>;
+		interrupt-map = <
+			0 &tlmm 50 2
+			>;
+		interrupt-names = "rtc_fm_int";
+		vdd-supply = <&L7E>;
+		rtc6226,vdd-supply-voltage = <2800000 2800000>;
+		vio-supply = <&S10B>;
+		rtc6226,vio-supply-voltage = <1800000 1800000 >;
+
+	};
+};

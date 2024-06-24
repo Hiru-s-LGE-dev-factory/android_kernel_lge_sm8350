@@ -1,0 +1,240 @@
+#include "dsi-panel-sw43103-dv-fhd-dsc-cmd.dtsi"
+#include "dsi-panel-sw43103-pv-fhd-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-dv1-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-pp2-2-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-pp2-1-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-eng3-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-eng2-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-eng-expandable-dsc-cmd.dtsi"
+#include "dsi-panel-nt37800a-not-expandable-dsc-cmd.dtsi"
+
+&soc {
+	dsi_panel_pwr_supply_dvdd: dsi_panel_pwr_supply_dvdd {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <60700>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-post-on-sleep = <10>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <3000000>;
+			qcom,supply-max-voltage = <3000000>;
+			qcom,supply-enable-load = <10000>;
+			qcom,supply-disable-load = <0>;
+			qcom,supply-post-on-sleep = <10>;
+		};
+
+		qcom,panel-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "dvdd";
+			qcom,supply-min-voltage = <1200000>;
+			qcom,supply-max-voltage = <1200000>;
+			qcom,supply-enable-load = <60700>;
+			qcom,supply-disable-load = <0>;
+			qcom,supply-post-on-sleep = <0>;
+		};
+	};
+};
+
+&mdss_mdp {
+	connectors = <&sde_dp &sde_wb &sde_dsi &sde_rscc>;
+};
+
+&sde_dsi {
+	qcom,dsi-ctrl = <&mdss_dsi0>;
+	qcom,dsi-phy = <&mdss_dsi_phy0>;
+
+	clocks = <&mdss_dsi_phy0 BYTECLK_MUX_0_CLK>,
+		 <&mdss_dsi_phy0 PCLK_MUX_0_CLK>;
+	clock-names = "mux_byte_clk0", "mux_pixel_clk0";
+
+	vddio-supply = <&L12C>;
+	vdd-supply = <&L13C>;
+	dvdd-supply = <&L1D>;
+	//block avdd supply for wmc function
+	avdd-supply = <0x0>;
+
+	qcom,dsi-default-panel = <&dsi_sim_cmd>;
+};
+
+&sde_dp {
+	qcom,ext-disp = <&ext_disp>;
+	lge,dp-use;
+	pinctrl-names = "mdss_dp_active", "mdss_dp_sleep", "default";
+	pinctrl-0 = <&sde_dp_aux_active>;
+	pinctrl-1 = <&sde_dp_aux_suspend>;
+
+	qcom,aux-cfg1-settings = [24 23 13 1d];
+	qcom,aux-en-gpio = <&tlmm 131 0>;
+	qcom,aux-sel-gpio = <&tlmm 123 0>;
+};
+
+&dsi_sim_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	lge,man-name = "QCT";
+	lge,ddic-name = "dsi_sim_cmd";
+};
+
+&dsi_sw43103_dv_fhd_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "sw43103";
+	lge,use-labibb;
+};
+
+&dsi_sw43103_pv_fhd_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "sw43103";
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_dv1_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_pp2_2_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_pp2_1_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_eng3_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_eng2_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_eng_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};
+
+&dsi_nt37800a_not_exp_dsc_cmd {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_dvdd>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <5>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <365>;
+	qcom,platform-te-gpio = <&tlmm 82 0>;
+	qcom,platform-reset-gpio = <&tlmm 24 0>;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
+	lge,dcs-brightness-bigendian;
+	lge,default-brightness = <158>;
+	lge,man-name = "BOE";
+	lge,ddic-name = "nt37800a"; /* To Do */
+	lge,use-labibb;
+};

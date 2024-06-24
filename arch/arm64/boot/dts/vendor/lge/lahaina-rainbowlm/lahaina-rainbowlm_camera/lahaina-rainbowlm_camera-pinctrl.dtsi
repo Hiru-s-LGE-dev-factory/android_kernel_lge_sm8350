@@ -1,0 +1,211 @@
+&tlmm {
+	cam_sensor_active_front_rst: cam_sensor_active_front_rst {
+		mux {
+			pins = "gpio115";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio115";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_suspend_front_rst: cam_sensor_suspend_front_rst {
+		mux {
+			pins = "gpio115";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio115";
+			bias-pull-down;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_front_af_ldo_en: cam_sensor_front_af_ldo_en {
+		mux {
+			pins = "gpio51";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio51";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_front_digital_analog_ldo_en: cam_sensor_front_digital_analog_ldo_en {
+		mux {
+			pins = "gpio58";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio58";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+    cam_sensor_front_io_ldo_en: cam_sensor_front_io_ldo_en {
+		mux {
+			pins = "gpio59";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio59";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_io_ldo_en: cam_sensor_tele_io_ldo_en {
+		mux {
+			pins = "gpio73";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio73";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_digital_analog_ldo_en: cam_sensor_tele_digital_analog_ldo_en {
+		mux {
+			pins = "gpio72";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio72";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_af_ldo_en: cam_sensor_tele_af_ldo_en {
+		mux {
+			pins = "gpio74";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio74";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_tele_mvdd_ldo_en: cam_sensor_tele_mvdd_ldo_en {
+		mux {
+			pins = "gpio75";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio75";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_main_mvdd_ldo_en: cam_sensor_main_mvdd_ldo_en {
+		mux {
+			pins = "gpio78";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio78";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_main_lvdd_ldo_en: cam_sensor_main_lvdd_ldo_en {
+		mux {
+			pins = "gpio77";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio77";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_main_avdd_dvdd_ldo_en: cam_sensor_main_avdd_dvdd_ldo_en {
+		mux {
+			pins = "gpio76";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio76";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_wide_io_ldo_en: cam_sensor_wide_io_ldo_en {
+		mux {
+			pins = "gpio32";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio32";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_wide_avdd_dvdd_ldo_en: cam_sensor_wide_avdd_dvdd_ldo_en {
+		mux {
+			pins = "gpio34";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio34";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+
+	cam_sensor_wide_avdd2_ldo_en: cam_sensor_wide_avdd2_ldo_en {
+		mux {
+			pins = "gpio33";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio33";
+			bias-disable;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+};

@@ -1,0 +1,4 @@
+#include "../../../qcom/display/lahaina-sde-display.dtsi"
+
+#include "../lahaina-blm_common/lahaina-blm_common-panel.dtsi"
+

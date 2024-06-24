@@ -1,0 +1,30 @@
+/dts-v1/;
+/plugin/;
+
+#include "lahaina-rainbowlm.dtsi"
+#include "lahaina-rainbowlm-sound.dtsi"
+#include "lahaina-rainbowlm-buttonless.dtsi"
+#include "../lahaina-rainbowlm_camera/lahaina-rainbowlm_camera_rev-a.dtsi"
+#include "lahaina-rainbowlm-nfc-sn100.dtsi"
+
+/ {
+    model = "LG Electronics, Rainbowlm JP, rev.A";
+    compatible = "qcom,lahaina-mtp", "qcom,lahaina", "qcom,mtp";
+    qcom,board-id = <0x01060008 0>;
+};
+
+&lge_sbu_switch {
+    lge,uart-sbu-sel-gpio = <&tlmm 124 GPIO_ACTIVE_LOW>;
+};
+
+&tlmm {
+    lge,lahaina-reserved-gpios = <52 53 54 55 56>;
+};
+
+&display_panel_avdd {
+    status = "disabled";
+};
+
+&lge_wmc {
+    status = "disabled";
+};
