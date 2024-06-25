@@ -65,6 +65,17 @@ struct buffer_aux {
 	int hash_verified;
 };
 
+#ifndef CONFIG_LGE_PM
+/*
+ * While system shutdown, skip verity work for I/O error.
+ */
+static inline bool verity_is_system_shutting_down(void)
+{
+	return system_state == SYSTEM_HALT || system_state == SYSTEM_POWER_OFF
+		|| system_state == SYSTEM_RESTART;
+}
+#endif
+
 /*
  * Initialize struct buffer_aux for a freshly created buffer.
  */
@@ -711,8 +722,13 @@ static void verity_end_io(struct bio *bio)
 {
 	struct dm_verity_io *io = bio->bi_private;
 
+#ifdef CONFIG_LGE_PM
 	if (bio->bi_status && (!verity_fec_is_enabled(io->v) ||
 	verity_shutting_down())) {
+#else
+	if (bio->bi_status &&
+		(!verity_fec_is_enabled(io->v) || verity_is_system_shutting_down())) {
+#endif
 		verity_finish_io(io, bio->bi_status);
 		return;
 	}

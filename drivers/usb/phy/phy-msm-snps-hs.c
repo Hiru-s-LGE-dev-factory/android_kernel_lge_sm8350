@@ -100,6 +100,8 @@ MODULE_PARM_DESC(override_phy_tune_host, "Override USB2PHY_USB_PHY_PARAMETER_OVE
 
 #define USB_HSPHY_VDD_HPM_LOAD			30000	/* uA */
 
+#define USB_HSPHY_VDD_HPM_LOAD			30000	/* uA */
+
 struct msm_hsphy {
 	struct usb_phy		phy;
 	void __iomem		*base;

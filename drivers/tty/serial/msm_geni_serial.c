@@ -28,6 +28,7 @@
 #ifdef CONFIG_LGE_USB_DEBUGGER
 #include <soc/qcom/lge/board_lge.h>
 #endif
+#include <uapi/linux/msm_geni_serial.h>
 
 /* UART specific GENI registers */
 #define SE_UART_LOOPBACK_CFG		(0x22C)
@@ -558,15 +559,18 @@ static int msm_geni_serial_ioctl(struct uart_port *uport, unsigned int cmd,
 	int ret = -ENOIOCTLCMD;
 
 	switch (cmd) {
-	case TIOCPMGET: {
+	case TIOCPMGET:
+	case MSM_GENI_SERIAL_TIOCPMGET: {
 		ret = vote_clock_on(uport);
 		break;
 	}
-	case TIOCPMPUT: {
+	case TIOCPMPUT:
+	case MSM_GENI_SERIAL_TIOCPMPUT: {
 		ret = vote_clock_off(uport);
 		break;
 	}
-	case TIOCPMACT: {
+	case TIOCPMACT:
+	case MSM_GENI_SERIAL_TIOCPMACT: {
 		ret = !pm_runtime_status_suspended(uport->dev);
 		break;
 	}
