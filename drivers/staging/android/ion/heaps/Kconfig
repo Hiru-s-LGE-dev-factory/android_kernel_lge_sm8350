@@ -97,3 +97,11 @@ config ION_DEBUGGING_PROCFS
 	help
 	  Choose this option to debug with /proc/ioninfo. R OS doesn't support debugfs
 	  and need to debug ion memory. Instead of debugfs, procfs will be added.
+
+config PANIC_ON_MSM_ION_HEAPS_FAILURE
+	bool "Trigger kernel panic when msm ion heap probe fails"
+	help
+	This is a debug feature where a kernel panic is triggered when
+	msm ion heap probe fails. This can happen when any invalid heap id,
+	heap types are added in device tree. Panic ensures early detection
+	of such changes.

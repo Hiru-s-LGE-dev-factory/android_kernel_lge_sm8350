@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved. */
 
 #ifndef _CNSS_MAIN_H
 #define _CNSS_MAIN_H
@@ -9,11 +9,15 @@
 #include <linux/esoc_client.h>
 #endif
 #include <linux/etherdevice.h>
+#if IS_ENABLED(CONFIG_INTERCONNECT)
 #include <linux/interconnect.h>
+#endif
 #include <linux/pm_qos.h>
 #include <linux/platform_device.h>
 #include <net/cnss2.h>
+#if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2)
 #include <soc/qcom/memory_dump.h>
+#endif
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART) || \
 	IS_ENABLED(CONFIG_SUBSYSTEM_RAMDUMP)
 #include <soc/qcom/ramdump.h>
@@ -37,7 +41,8 @@
 #define TIME_CLOCK_FREQ_HZ		19200000
 #define CNSS_RAMDUMP_MAGIC		0x574C414E
 #define CNSS_RAMDUMP_VERSION		0
-#define MAX_FIRMWARE_NAME_LEN		20
+#define MAX_FIRMWARE_NAME_LEN		40
+#define FW_V2_NUMBER                    2
 
 #define CNSS_EVENT_SYNC   BIT(0)
 #define CNSS_EVENT_UNINTERRUPTIBLE BIT(1)
@@ -90,6 +95,7 @@ struct cnss_pinctrl_info {
 	struct pinctrl_state *wlan_en_active;
 	struct pinctrl_state *wlan_en_sleep;
 	int bt_en_gpio;
+	int xo_clk_gpio; /*qca6490 only */
 };
 
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART)
@@ -105,7 +111,9 @@ struct cnss_ramdump_info {
 	unsigned long ramdump_size;
 	void *ramdump_va;
 	phys_addr_t ramdump_pa;
+#if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2)
 	struct msm_dump_data dump_data;
+#endif
 };
 
 struct cnss_dump_seg {
@@ -141,6 +149,7 @@ struct cnss_esoc_info {
 };
 #endif
 
+#if IS_ENABLED(CONFIG_INTERCONNECT)
 /**
  * struct cnss_bus_bw_cfg - Interconnect vote data
  * @avg_bw: Vote for average bandwidth
@@ -167,6 +176,7 @@ struct cnss_bus_bw_info {
 	struct icc_path *icc_path;
 	struct cnss_bus_bw_cfg *cfg_table;
 };
+#endif
 
 /**
  * struct cnss_interconnect_cfg - CNSS platform interconnect config
@@ -261,6 +271,7 @@ enum cnss_driver_event_type {
 	CNSS_DRIVER_EVENT_QDSS_TRACE_REQ_MEM,
 	CNSS_DRIVER_EVENT_FW_MEM_FILE_SAVE,
 	CNSS_DRIVER_EVENT_QDSS_TRACE_FREE,
+	CNSS_DRIVER_EVENT_QDSS_TRACE_REQ_DATA,
 	CNSS_DRIVER_EVENT_MAX,
 };
 
@@ -386,6 +397,14 @@ struct cnss_dms_data {
 	u8 mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
 };
 
+enum cnss_timeout_type {
+	CNSS_TIMEOUT_QMI,
+	CNSS_TIMEOUT_POWER_UP,
+	CNSS_TIMEOUT_IDLE_RESTART,
+	CNSS_TIMEOUT_CALIBRATION,
+	CNSS_TIMEOUT_WLAN_WATCHDOG,
+};
+
 struct cnss_plat_data {
 	struct platform_device *plat_dev;
 	void *bus_priv;
@@ -408,6 +427,7 @@ struct cnss_plat_data {
 	struct cnss_platform_cap cap;
 	struct pm_qos_request qos_request;
 	struct cnss_device_version device_version;
+	u32 rc_num;
 	unsigned long device_id;
 	enum cnss_driver_status driver_status;
 	u32 recovery_count;
@@ -471,6 +491,8 @@ struct cnss_plat_data {
 	bool fw_pcie_gen_switch;
 	u8 pcie_gen_speed;
 	struct cnss_dms_data dms;
+	int power_up_error;
+	u32 hw_trc_override;
 };
 
 #ifdef CONFIG_ARCH_QCOM
@@ -494,6 +516,8 @@ static inline u64 cnss_get_host_timestamp(struct cnss_plat_data *plat_priv)
 #endif
 
 struct cnss_plat_data *cnss_get_plat_priv(struct platform_device *plat_dev);
+void cnss_pm_stay_awake(struct cnss_plat_data *plat_priv);
+void cnss_pm_relax(struct cnss_plat_data *plat_priv);
 int cnss_driver_event_post(struct cnss_plat_data *plat_priv,
 			   enum cnss_driver_event_type type,
 			   u32 flags, void *data);
@@ -532,5 +556,7 @@ int cnss_minidump_remove_region(struct cnss_plat_data *plat_priv,
 				void *va, phys_addr_t pa, size_t size);
 int cnss_enable_int_pow_amp_vreg(struct cnss_plat_data *plat_priv);
 int cnss_get_tcs_info(struct cnss_plat_data *plat_priv);
+unsigned int cnss_get_timeout(struct cnss_plat_data *plat_priv,
+			      enum cnss_timeout_type);
 
 #endif /* _CNSS_MAIN_H */

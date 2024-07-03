@@ -102,6 +102,7 @@ static int fts_ts_suspend(struct device *dev);
 static int fts_ts_resume(struct device *dev);
 static irqreturn_t fts_irq_handler(int irq, void *data);
 static int fts_ts_probe_delayed(struct fts_ts_data *fts_data);
+static int fts_ts_enable_reg(struct fts_ts_data *ts_data, bool enable);
 
 #ifdef CONFIG_FTS_TRUSTED_TOUCH
 
@@ -151,7 +152,7 @@ static int fts_ts_populate_vm_info(struct fts_ts_data *fts_data)
 {
 	int rc = 0;
 	struct trusted_touch_vm_info *vm_info;
-	struct device_node *np = fts_data->client->dev.of_node;
+	struct device_node *np = fts_data->dev->of_node;
 	int num_regs, num_sizes = 0;
 
 	vm_info = kzalloc(sizeof(struct trusted_touch_vm_info), GFP_KERNEL);
@@ -406,8 +407,12 @@ static void fts_ts_trusted_touch_tvm_vm_mode_enable(struct fts_ts_data *fts_data
 	}
 	fts_ts_trusted_touch_set_tvm_driver_state(fts_data, TVM_IOMEM_ACCEPTED);
 
-	/* Initiate i2c session on tvm */
-	rc = pm_runtime_get_sync(fts_data->client->adapter->dev.parent);
+	/* Initiate session on tvm */
+	if (fts_data->bus_type == BUS_TYPE_I2C)
+		rc = pm_runtime_get_sync(fts_data->client->adapter->dev.parent);
+	else
+		rc = pm_runtime_get_sync(fts_data->spi->master->dev.parent);
+
 	if (rc < 0) {
 		pr_err("failed to get sync rc:%d\n", rc);
 		goto acl_fail;
@@ -580,6 +585,14 @@ static void fts_ts_trusted_touch_tvm_vm_mode_disable(struct fts_ts_data *fts_dat
 	pr_debug("vm irq release succeded\n");
 
 	fts_release_all_finger();
+
+	if (fts_data->bus_type == BUS_TYPE_I2C)
+		pm_runtime_put_sync(fts_data->client->adapter->dev.parent);
+	else
+		pm_runtime_put_sync(fts_data->spi->master->dev.parent);
+
+	fts_ts_trusted_touch_set_tvm_driver_state(fts_data,
+					TVM_I2C_SESSION_RELEASED);
 	rc = fts_ts_vm_mem_release(fts_data);
 	if (rc) {
 		pr_err("Failed to release mem rc:%d\n", rc);
@@ -588,9 +601,6 @@ static void fts_ts_trusted_touch_tvm_vm_mode_disable(struct fts_ts_data *fts_dat
 		fts_ts_trusted_touch_set_tvm_driver_state(fts_data,
 					TVM_IOMEM_RELEASED);
 	}
-	pm_runtime_put_sync(fts_data->client->adapter->dev.parent);
-	fts_ts_trusted_touch_set_tvm_driver_state(fts_data,
-					TVM_I2C_SESSION_RELEASED);
 	fts_ts_trusted_touch_set_tvm_driver_state(fts_data, TRUSTED_TOUCH_TVM_INIT);
 	atomic_set(&fts_data->trusted_touch_enabled, 0);
 	pr_info("trusted touch disabled\n");
@@ -667,16 +677,19 @@ static void fts_ts_trusted_touch_abort_tvm(struct fts_ts_data *fts_data)
 	case TVM_IOMEM_ACCEPTED:
 	case TVM_IRQ_RELEASED:
 		fts_release_all_finger();
+		if (fts_data->bus_type == BUS_TYPE_I2C)
+			pm_runtime_put_sync(fts_data->client->adapter->dev.parent);
+		else
+			pm_runtime_put_sync(fts_data->spi->master->dev.parent);
+	case TVM_I2C_SESSION_RELEASED:
 		rc = fts_ts_vm_mem_release(fts_data);
 		if (rc)
 			pr_err("Failed to release mem rc:%d\n", rc);
 	case TVM_IOMEM_RELEASED:
-		pm_runtime_put_sync(fts_data->client->adapter->dev.parent);
-	case TVM_I2C_SESSION_RELEASED:
-	case TVM_IOMEM_LENT_NOTIFIED:
-	case TVM_IRQ_LENT_NOTIFIED:
 	case TVM_ALL_RESOURCES_LENT_NOTIFIED:
 	case TRUSTED_TOUCH_TVM_INIT:
+	case TVM_IRQ_LENT_NOTIFIED:
+	case TVM_IOMEM_LENT_NOTIFIED:
 		atomic_set(&fts_data->trusted_touch_enabled, 0);
 	}
 
@@ -740,10 +753,10 @@ static void fts_ts_trusted_touch_abort_pvm(struct fts_ts_data *fts_data)
 	case PVM_I2C_RESOURCE_ACQUIRED:
 	case PVM_INTERRUPT_ENABLED:
 		fts_ts_bus_put(fts_data);
-		complete(&fts_data->trusted_touch_powerdown);
 	case TRUSTED_TOUCH_PVM_INIT:
 	case PVM_I2C_RESOURCE_RELEASED:
 		atomic_set(&fts_data->trusted_touch_enabled, 0);
+		atomic_set(&fts_data->trusted_touch_underway, 0);
 	}
 
 	atomic_set(&fts_data->trusted_touch_abort_status, 0);
@@ -778,27 +791,47 @@ static void fts_ts_clk_disable_unprepare(struct fts_ts_data *fts_data)
 static int fts_ts_bus_get(struct fts_ts_data *fts_data)
 {
 	int rc = 0;
+	struct device *dev = NULL;
+
+	cancel_work_sync(&fts_data->suspend_work);
+	cancel_work_sync(&fts_data->resume_work);
+	reinit_completion(&fts_data->trusted_touch_powerdown);
+	fts_ts_enable_reg(fts_data, true);
+
+	if (fts_data->bus_type == BUS_TYPE_I2C)
+		dev = fts_data->client->adapter->dev.parent;
+	else
+		dev = fts_data->spi->master->dev.parent;
 
 	mutex_lock(&fts_data->fts_clk_io_ctrl_mutex);
-	rc = pm_runtime_get_sync(fts_data->client->adapter->dev.parent);
+	rc = pm_runtime_get_sync(dev);
 	if (rc >= 0 &&  fts_data->core_clk != NULL &&
 				fts_data->iface_clk != NULL) {
 		rc = fts_ts_clk_prepare_enable(fts_data);
 		if (rc)
-			pm_runtime_put_sync(
-				fts_data->client->adapter->dev.parent);
+			pm_runtime_put_sync(dev);
 	}
+
 	mutex_unlock(&fts_data->fts_clk_io_ctrl_mutex);
 	return rc;
 }
 
 static void fts_ts_bus_put(struct fts_ts_data *fts_data)
 {
+	struct device *dev = NULL;
+
+	if (fts_data->bus_type == BUS_TYPE_I2C)
+		dev = fts_data->client->adapter->dev.parent;
+	else
+		dev = fts_data->spi->master->dev.parent;
+
 	mutex_lock(&fts_data->fts_clk_io_ctrl_mutex);
 	if (fts_data->core_clk != NULL && fts_data->iface_clk != NULL)
 		fts_ts_clk_disable_unprepare(fts_data);
-	pm_runtime_put_sync(fts_data->client->adapter->dev.parent);
+	pm_runtime_put_sync(dev);
 	mutex_unlock(&fts_data->fts_clk_io_ctrl_mutex);
+	complete(&fts_data->trusted_touch_powerdown);
+	fts_ts_enable_reg(fts_data, false);
 }
 
 static struct hh_notify_vmid_desc *fts_ts_vm_get_vmid(hh_vmid_t vmid)
@@ -849,10 +882,10 @@ static void fts_trusted_touch_pvm_vm_mode_disable(struct fts_ts_data *fts_data)
 	fts_ts_bus_put(fts_data);
 	fts_ts_trusted_touch_set_pvm_driver_state(fts_data,
 						PVM_I2C_RESOURCE_RELEASED);
-	complete(&fts_data->trusted_touch_powerdown);
 	fts_ts_trusted_touch_set_pvm_driver_state(fts_data,
 						TRUSTED_TOUCH_PVM_INIT);
 	atomic_set(&fts_data->trusted_touch_enabled, 0);
+	atomic_set(&fts_data->trusted_touch_underway, 0);
 	return;
 error:
 	fts_ts_trusted_touch_abort_handler(fts_data,
@@ -990,6 +1023,7 @@ static int fts_ts_trusted_touch_pvm_vm_mode_enable(struct fts_ts_data *fts_data)
 	int rc = 0;
 	struct trusted_touch_vm_info *vm_info = fts_data->vm_info;
 
+	atomic_set(&fts_data->trusted_touch_underway, 1);
 	/* i2c session start and resource acquire */
 	if (fts_ts_bus_get(fts_data) < 0) {
 		FTS_ERROR("fts_ts_bus_get failed\n");
@@ -1026,7 +1060,6 @@ static int fts_ts_trusted_touch_pvm_vm_mode_enable(struct fts_ts_data *fts_data)
 	}
 	fts_ts_trusted_touch_set_pvm_driver_state(fts_data, PVM_IRQ_LENT_NOTIFIED);
 
-	reinit_completion(&fts_data->trusted_touch_powerdown);
 	atomic_set(&fts_data->trusted_touch_enabled, 1);
 	pr_debug("trusted touch enabled\n");
 	return rc;
@@ -1081,7 +1114,7 @@ int fts_ts_handle_trusted_touch_pvm(struct fts_ts_data *fts_data, int value)
 static void fts_ts_trusted_touch_event_notify(struct fts_ts_data *fts_data, int event)
 {
 	atomic_set(&fts_data->trusted_touch_event, event);
-	sysfs_notify(&fts_data->client->dev.kobj, NULL, "trusted_touch_event");
+	sysfs_notify(&fts_data->dev->kobj, NULL, "trusted_touch_event");
 }
 
 static void fts_ts_trusted_touch_abort_handler(struct fts_ts_data *fts_data, int error)
@@ -1147,7 +1180,7 @@ fail:
 
 static void fts_ts_dt_parse_trusted_touch_info(struct fts_ts_data *fts_data)
 {
-	struct device_node *np = fts_data->client->dev.of_node;
+	struct device_node *np = fts_data->dev->of_node;
 	int rc = 0;
 	const char *selection;
 	const char *environment;
@@ -1155,7 +1188,7 @@ static void fts_ts_dt_parse_trusted_touch_info(struct fts_ts_data *fts_data)
 	rc = of_property_read_string(np, "focaltech,trusted-touch-mode",
 								&selection);
 	if (rc) {
-		dev_warn(&fts_data->client->dev,
+		dev_warn(fts_data->dev,
 			"%s: No trusted touch mode selection made\n", __func__);
 		atomic_set(&fts_data->trusted_touch_mode,
 						TRUSTED_TOUCH_MODE_NONE);
@@ -1175,7 +1208,7 @@ static void fts_ts_dt_parse_trusted_touch_info(struct fts_ts_data *fts_data)
 	rc = of_property_read_string(np, "focaltech,touch-environment",
 						&environment);
 	if (rc) {
-		dev_warn(&fts_data->client->dev,
+		dev_warn(fts_data->dev,
 			"%s: No trusted touch mode environment\n", __func__);
 	}
 	fts_data->touch_environment = environment;
@@ -1197,19 +1230,19 @@ static void fts_ts_trusted_touch_init(struct fts_ts_data *fts_data)
 	init_completion(&fts_data->trusted_touch_powerdown);
 
 	/* Get clocks */
-	fts_data->core_clk = devm_clk_get(fts_data->client->dev.parent,
+	fts_data->core_clk = devm_clk_get(fts_data->dev->parent,
 						"m-ahb");
 	if (IS_ERR(fts_data->core_clk)) {
 		fts_data->core_clk = NULL;
-		dev_warn(&fts_data->client->dev,
+		dev_warn(fts_data->dev,
 				"%s: core_clk is not defined\n", __func__);
 	}
 
-	fts_data->iface_clk = devm_clk_get(fts_data->client->dev.parent,
+	fts_data->iface_clk = devm_clk_get(fts_data->dev->parent,
 						"se-clk");
 	if (IS_ERR(fts_data->iface_clk)) {
 		fts_data->iface_clk = NULL;
-		dev_warn(&fts_data->client->dev,
+		dev_warn(fts_data->dev,
 			"%s: iface_clk is not defined\n", __func__);
 	}
 
@@ -2067,6 +2100,39 @@ static int fts_pinctrl_select_release(struct fts_ts_data *ts)
 }
 #endif /* FTS_PINCTRL_EN */
 
+static int fts_ts_enable_reg(struct fts_ts_data *ts_data, bool enable)
+{
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(ts_data->vdd)) {
+		FTS_ERROR("vdd is invalid");
+		return -EINVAL;
+	}
+
+	if (enable) {
+		ret = regulator_enable(ts_data->vdd);
+		if (ret)
+			FTS_ERROR("enable vdd regulator failed,ret=%d", ret);
+
+		if (!IS_ERR_OR_NULL(ts_data->vcc_i2c)) {
+			ret = regulator_enable(ts_data->vcc_i2c);
+			if (ret)
+				FTS_ERROR("enable vcc_i2c regulator failed,ret=%d", ret);
+		}
+	} else {
+		ret = regulator_disable(ts_data->vdd);
+		if (ret)
+			FTS_ERROR("disable vdd regulator failed,ret=%d", ret);
+		if (!IS_ERR_OR_NULL(ts_data->vcc_i2c)) {
+			ret = regulator_disable(ts_data->vcc_i2c);
+			if (ret)
+				FTS_ERROR("disable vcc_i2c regulator failed,ret=%d", ret);
+		}
+	}
+
+	return ret;
+}
+
 static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
 {
 	int ret = 0;
@@ -2082,17 +2148,9 @@ static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
 			FTS_DEBUG("regulator enable !");
 			gpio_direction_output(ts_data->pdata->reset_gpio, 0);
 			msleep(1);
-			ret = regulator_enable(ts_data->vdd);
-			if (ret) {
-				FTS_ERROR("enable vdd regulator failed,ret=%d", ret);
-			}
-
-			if (!IS_ERR_OR_NULL(ts_data->vcc_i2c)) {
-				ret = regulator_enable(ts_data->vcc_i2c);
-				if (ret) {
-					FTS_ERROR("enable vcc_i2c regulator failed,ret=%d", ret);
-				}
-			}
+			ret = fts_ts_enable_reg(ts_data, true);
+			if (ret)
+				FTS_ERROR("Touch reg enable failed\n");
 			ts_data->power_disabled = false;
 		}
 	} else {
@@ -2100,16 +2158,9 @@ static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
 			FTS_DEBUG("regulator disable !");
 			gpio_direction_output(ts_data->pdata->reset_gpio, 0);
 			msleep(1);
-			ret = regulator_disable(ts_data->vdd);
-			if (ret) {
-				FTS_ERROR("disable vdd regulator failed,ret=%d", ret);
-			}
-			if (!IS_ERR_OR_NULL(ts_data->vcc_i2c)) {
-				ret = regulator_disable(ts_data->vcc_i2c);
-				if (ret) {
-					FTS_ERROR("disable vcc_i2c regulator failed,ret=%d", ret);
-				}
-			}
+			ret = fts_ts_enable_reg(ts_data, false);
+			if (ret)
+				FTS_ERROR("Touch reg disable failed");
 			ts_data->power_disabled = true;
 		}
 	}
@@ -2844,7 +2895,7 @@ static int fts_ts_suspend(struct device *dev)
 		return 0;
 	}
 #ifdef CONFIG_FTS_TRUSTED_TOUCH
-	if (atomic_read(&fts_data->trusted_touch_enabled))
+	if (atomic_read(&fts_data->trusted_touch_underway))
 		wait_for_completion_interruptible(
 			&fts_data->trusted_touch_powerdown);
 #endif
@@ -2888,6 +2939,13 @@ static int fts_ts_resume(struct device *dev)
 		FTS_DEBUG("Already in awake state");
 		return 0;
 	}
+
+#ifdef CONFIG_FTS_TRUSTED_TOUCH
+
+	if (atomic_read(&ts_data->trusted_touch_underway))
+		wait_for_completion_interruptible(
+			&ts_data->trusted_touch_powerdown);
+#endif
 
 	fts_release_all_finger();
 
@@ -3082,7 +3140,6 @@ static void __exit fts_ts_i2c_exit(void)
 {
 	i2c_del_driver(&fts_ts_i2c_driver);
 }
-
 
 static int fts_ts_spi_probe(struct spi_device *spi)
 {
