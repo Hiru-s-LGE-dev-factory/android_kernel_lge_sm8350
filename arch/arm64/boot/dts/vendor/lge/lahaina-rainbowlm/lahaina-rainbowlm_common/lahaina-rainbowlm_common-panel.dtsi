@@ -3,6 +3,7 @@
 #include "dsi-panel-nt37800a-rdk-fhd-dsc-cmd.dtsi"
 #include "dsi-panel-nt37701-pp1-fhd-dsc-cmd.dtsi"
 #include "dsi-panel-nt37701-dv1-fhd-dsc-cmd.dtsi"
+#include "dsi-panel-nt37701-dv2-fhd-dsc-cmd.dtsi"
 
 &soc {
 	dsi_panel_pwr_supply_dvdd: dsi_panel_pwr_supply_dvdd {
