@@ -54,3 +54,4 @@ obj-$(CONFIG_USB_WUSB)		+= wusbcore/
 # [FS] disable staging exfat driver
 # obj-$(CONFIG_EXFAT_FS)         += exfat/
 obj-$(CONFIG_QLGE)		+= qlge/
+obj-$(CONFIG_QCA_CLD_WLAN)	+= qcacld-3.0/
