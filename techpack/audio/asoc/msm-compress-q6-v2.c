@@ -86,7 +86,7 @@ int lge_ais_param[LGE_AIS_PARAM_MAX];
 #define COMPR_PLAYBACK_MAX_NUM_FRAGMENTS (16 * 4)
 
 #define COMPRESSED_LR_VOL_MAX_STEPS	0x2000
-const DECLARE_TLV_DB_LINEAR(msm_compr_vol_gain, 0,
+static const DECLARE_TLV_DB_LINEAR(msm_compr_vol_gain, 0,
 				COMPRESSED_LR_VOL_MAX_STEPS);
 
 /* Stream id switches between 1 and 2 */
@@ -210,7 +210,7 @@ struct msm_compr_audio {
 	spinlock_t lock;
 };
 
-const u32 compr_codecs[] = {
+static const u32 compr_codecs[] = {
 	SND_AUDIOCODEC_AC3, SND_AUDIOCODEC_EAC3, SND_AUDIOCODEC_DTS,
 	SND_AUDIOCODEC_TRUEHD, SND_AUDIOCODEC_IEC61937};
 
@@ -911,8 +911,7 @@ static void compr_event_handler(uint32_t opcode,
 		}
 		atomic_set(&prtd->eos, 0);
 		stream_index = STREAM_ARRAY_INDEX(stream_id);
-		if (stream_index >= MAX_NUMBER_OF_STREAMS ||
-		    stream_index < 0) {
+		if (stream_index >= MAX_NUMBER_OF_STREAMS) {
 			pr_err("%s: Invalid stream index %d", __func__,
 				stream_index);
 			spin_unlock_irqrestore(&prtd->lock, flags);
@@ -1602,7 +1601,7 @@ static int msm_compr_configure_dsp_for_playback
 
 	pr_debug("%s: stream_id %d\n", __func__, ac->stream_id);
 	stream_index = STREAM_ARRAY_INDEX(ac->stream_id);
-	if (stream_index >= MAX_NUMBER_OF_STREAMS || stream_index < 0) {
+	if (stream_index >= MAX_NUMBER_OF_STREAMS) {
 		pr_err("%s: Invalid stream index:%d", __func__, stream_index);
 		return -EINVAL;
 	}
@@ -1875,7 +1874,7 @@ static int msm_compr_configure_dsp_for_capture(struct snd_compr_stream *cstream)
 	}
 
 	stream_index = STREAM_ARRAY_INDEX(ac->stream_id);
-	if (stream_index >= MAX_NUMBER_OF_STREAMS || stream_index < 0) {
+	if (stream_index >= MAX_NUMBER_OF_STREAMS) {
 		pr_err("%s: Invalid stream index:%d", __func__, stream_index);
 		return -EINVAL;
 	}
@@ -2222,7 +2221,7 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 	stream_id = ac->stream_id;
 	stream_index = STREAM_ARRAY_INDEX(NEXT_STREAM_ID(stream_id));
 
-	if ((stream_index < MAX_NUMBER_OF_STREAMS && stream_index >= 0) &&
+	if ((stream_index < MAX_NUMBER_OF_STREAMS) &&
 	    (prtd->gapless_state.stream_opened[stream_index])) {
 		prtd->gapless_state.stream_opened[stream_index] = 0;
 		spin_unlock_irqrestore(&prtd->lock, flags);
@@ -2232,7 +2231,7 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 	}
 
 	stream_index = STREAM_ARRAY_INDEX(stream_id);
-	if ((stream_index < MAX_NUMBER_OF_STREAMS && stream_index >= 0) &&
+	if ((stream_index < MAX_NUMBER_OF_STREAMS) &&
 	    (prtd->gapless_state.stream_opened[stream_index])) {
 		prtd->gapless_state.stream_opened[stream_index] = 0;
 		spin_unlock_irqrestore(&prtd->lock, flags);
@@ -2316,7 +2315,7 @@ static int msm_compr_capture_free(struct snd_compr_stream *cstream)
 	stream_id = ac->stream_id;
 
 	stream_index = STREAM_ARRAY_INDEX(stream_id);
-	if ((stream_index < MAX_NUMBER_OF_STREAMS && stream_index >= 0)) {
+	if (stream_index < MAX_NUMBER_OF_STREAMS) {
 		spin_unlock_irqrestore(&prtd->lock, flags);
 		pr_debug("close stream %d", stream_id);
 		q6asm_stream_cmd(ac, CMD_CLOSE, stream_id);
@@ -2388,8 +2387,7 @@ static int msm_compr_set_params(struct snd_compr_stream *cstream,
 	pr_debug("%s: sample_rate %d\n", __func__, prtd->sample_rate);
 
 	/* prtd->codec_param.codec.reserved[0] is for compr_passthr */
-	if ((prtd->codec_param.codec.reserved[0] >= LEGACY_PCM &&
-	    prtd->codec_param.
+	if ((prtd->codec_param.
 	    codec.reserved[0] <= COMPRESSED_PASSTHROUGH_DSD) ||
 	    (prtd->codec_param.
 	    codec.reserved[0] == COMPRESSED_PASSTHROUGH_IEC61937))
@@ -3035,8 +3033,7 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 		 * called immediately.
 		 */
 		stream_index = STREAM_ARRAY_INDEX(stream_id);
-		if (stream_index >= MAX_NUMBER_OF_STREAMS ||
-		    stream_index < 0) {
+		if (stream_index >= MAX_NUMBER_OF_STREAMS) {
 			pr_err("%s: Invalid stream index: %d", __func__,
 				stream_index);
 			spin_unlock_irqrestore(&prtd->lock, flags);
@@ -4881,8 +4878,7 @@ static int msm_compr_adsp_stream_cmd_put(struct snd_kcontrol *kcontrol,
 	}
 
 	event_data = (struct msm_adsp_event_data *)ucontrol->value.bytes.data;
-	if ((event_data->event_type < ADSP_STREAM_PP_EVENT) ||
-	    (event_data->event_type >= ADSP_STREAM_EVENT_MAX)) {
+	if (event_data->event_type >= ADSP_STREAM_EVENT_MAX) {
 		pr_err("%s: invalid event_type=%d",
 			__func__, event_data->event_type);
 		ret = -EINVAL;

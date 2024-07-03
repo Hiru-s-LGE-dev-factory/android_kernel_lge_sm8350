@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 #include <linux/slab.h>
 #include <linux/debugfs.h>
@@ -72,6 +72,7 @@ static void voice_bokeh_detection_status_work(struct work_struct *work)
 #define AFE_NOWAIT_TOKEN	2048
 
 #define SP_V4_NUM_MAX_SPKRS SP_V2_NUM_MAX_SPKRS
+#define MAX_LSM_SESSIONS 8
 
 struct afe_avcs_payload_port_mapping {
 	u16 port_id;
@@ -314,6 +315,7 @@ struct afe_ctl {
 	uint32_t num_spkrs;
 	uint32_t cps_ch_mask;
 	struct afe_cps_hw_intf_cfg *cps_config;
+	int lsm_afe_ports[MAX_LSM_SESSIONS];
 };
 
 struct afe_clkinfo_per_port {
@@ -401,6 +403,7 @@ static bool proxy_afe_started = false;
 		(sizeof(struct apr_hdr) + sizeof(u16) + (sizeof(struct y)))
 
 static bool is_afe_proxy_port(int port_id);
+static bool q6afe_is_afe_lsm_port(int port_id);
 
 static void q6afe_unload_avcs_modules(u16 port_id, int index)
 {
@@ -1024,6 +1027,8 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		if (this_afe.apr) {
 			apr_reset(this_afe.apr);
 			atomic_set(&this_afe.state, 0);
+			atomic_set(&this_afe.clk_state, 0);
+			atomic_set(&this_afe.clk_status, ADSP_ENOTREADY);
 			this_afe.apr = NULL;
 			rtac_set_afe_handle(this_afe.apr);
 		}
@@ -1043,6 +1048,20 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		mutex_lock(&this_afe.afe_cmd_lock);
 		for (i = 0; i < AFE_LPASS_CORE_HW_VOTE_MAX; i++)
 			this_afe.lpass_hw_core_client_hdl[i] = 0;
+
+		/*
+		 * Free the port mapping structures used for AVCS module
+		 * load/unload.
+		 */
+		for (i = 0; i < MAX_ALLOWED_USE_CASES; i++) {
+			if (pm[i]) {
+				kfree(pm[i]->payload);
+				pm[i]->payload = NULL;
+				kfree(pm[i]);
+				pm[i] = NULL;
+			}
+		}
+
 		mutex_unlock(&this_afe.afe_cmd_lock);
 
 		/*
@@ -3359,7 +3378,7 @@ static int afe_send_port_topology_id(u16 port_id)
 	}
 
 	ret = afe_get_cal_topology_id(port_id, &topology_id, AFE_TOPOLOGY_CAL);
-	if (ret < 0) {
+	if (ret < 0 && q6afe_is_afe_lsm_port(port_id)) {
 		pr_debug("%s: Check for LSM topology\n", __func__);
 		ret = afe_get_cal_topology_id(port_id, &topology_id,
 					      AFE_LSM_TOPOLOGY_CAL);
@@ -3822,7 +3841,7 @@ void afe_send_cal(u16 port_id)
 	if (afe_get_port_type(port_id) == MSM_AFE_PORT_TYPE_TX) {
 		afe_send_cal_spkr_prot_tx(port_id);
 		ret = send_afe_cal_type(AFE_COMMON_TX_CAL, port_id);
-		if (ret < 0)
+		if (ret < 0 && q6afe_is_afe_lsm_port(port_id))
 			send_afe_cal_type(AFE_LSM_TX_CAL, port_id);
 	} else if (afe_get_port_type(port_id) == MSM_AFE_PORT_TYPE_RX) {
 		send_afe_cal_type(AFE_COMMON_RX_CAL, port_id);
@@ -9098,10 +9117,8 @@ done:
 }
 EXPORT_SYMBOL(afe_set_display_stream);
 
-int afe_validate_port(u16 port_id)
+static bool is_port_valid(u16 port_id)
 {
-	int ret;
-
 	switch (port_id) {
 	case PRIMARY_I2S_RX:
 	case PRIMARY_I2S_TX:
@@ -9311,15 +9328,23 @@ int afe_validate_port(u16 port_id)
 	case RT_PROXY_PORT_002_RX:
 	case RT_PROXY_PORT_002_TX:
 	{
-		ret = 0;
-		break;
+		return true;
 	}
-
 	default:
+		return false;
+	}
+}
+
+int afe_validate_port(u16 port_id)
+{
+	int ret;
+
+	if (is_port_valid(port_id)) {
+		ret = 0;
+	} else {
 		pr_err("%s: default ret 0x%x\n", __func__, port_id);
 		ret = -EINVAL;
 	}
-
 	return ret;
 }
 
@@ -9354,7 +9379,9 @@ int afe_convert_virtual_to_portid(u16 port_id)
 	 * if port_id is virtual, convert to physical..
 	 * if port_id is already physical, return physical
 	 */
-	if (afe_validate_port(port_id) < 0) {
+	if (is_port_valid(port_id)) {
+		ret = port_id;
+	} else {
 		if (port_id == RT_PROXY_DAI_001_RX ||
 		    port_id == RT_PROXY_DAI_001_TX ||
 		    port_id == RT_PROXY_DAI_002_RX ||
@@ -9367,8 +9394,7 @@ int afe_convert_virtual_to_portid(u16 port_id)
 				__func__, port_id);
 			ret = -EINVAL;
 		}
-	} else
-		ret = port_id;
+	}
 
 	return ret;
 }
@@ -9434,8 +9460,7 @@ int afe_close(int port_id)
 				proxy_afe_instance[port_id & 0x3] = 0;
 			afe_close_done[port_id & 0x3] = true;
 		}
-		ret = -EINVAL;
-		goto fail_cmd;
+		return -EINVAL;
 	}
 	pr_debug("%s: port_id = 0x%x\n", __func__, port_id);
 	if ((port_id == RT_PROXY_DAI_001_RX) ||
@@ -11942,7 +11967,8 @@ int __init afe_init(void)
 	wl.ws = wakeup_source_register(NULL, "spkr-prot");
 	if (!wl.ws)
 		return -ENOMEM;
-
+	for (i = 0; i < MAX_LSM_SESSIONS; i++)
+		this_afe.lsm_afe_ports[i] = 0xffff;
 	ret = afe_init_cal_data();
 	if (ret)
 		pr_err("%s: could not init cal data! %d\n", __func__, ret);
@@ -12202,3 +12228,30 @@ void afe_set_cps_config(int src_port,
 	this_afe.cps_config = cps_config;
 }
 EXPORT_SYMBOL(afe_set_cps_config);
+
+static bool q6afe_is_afe_lsm_port(int port_id)
+{
+	int i = 0;
+
+	for (i = 0; i < MAX_LSM_SESSIONS; i++) {
+		if (port_id == this_afe.lsm_afe_ports[i])
+			return true;
+	}
+	return false;
+}
+
+/**
+ * afe_set_lsm_afe_port_id -
+ *            Update LSM AFE port
+ * idx: LSM port index
+ * lsm_port: LSM port id
+*/
+void afe_set_lsm_afe_port_id(int idx, int lsm_port)
+{
+	if (idx < 0 || idx >= MAX_LSM_SESSIONS) {
+		pr_err("%s: %d Invalid lsm port index\n", __func__, idx);
+		return;
+	}
+	this_afe.lsm_afe_ports[idx] = lsm_port;
+}
+EXPORT_SYMBOL(afe_set_lsm_afe_port_id);
