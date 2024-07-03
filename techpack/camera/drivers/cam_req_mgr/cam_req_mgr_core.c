@@ -2072,13 +2072,17 @@ static int __cam_req_mgr_process_sof_freeze(void *priv, void *data)
 	in_q = link->req.in_q;
 	if (in_q) {
 		mutex_lock(&link->req.lock);
-		last_applied_req_id = in_q->slot[in_q->last_applied_idx].req_id;
+		if (in_q->last_applied_idx >= 0)
+			last_applied_req_id =
+				in_q->slot[in_q->last_applied_idx].req_id;
 		mutex_unlock(&link->req.lock);
 	}
 
 	spin_lock_bh(&link->link_state_spin_lock);
 	if ((link->watchdog) && (link->watchdog->pause_timer)) {
-		CAM_INFO(CAM_CRM, "Watchdog Paused");
+		CAM_INFO(CAM_CRM,
+			"link:%x watchdog paused, maybe stream on/off is delayed",
+			link->link_hdl);
 		spin_unlock_bh(&link->link_state_spin_lock);
 		return rc;
 	}
@@ -3190,8 +3194,16 @@ static int cam_req_mgr_cb_notify_timer(
 		rc = -EPERM;
 		goto end;
 	}
-	if ((link->watchdog) && (!timer_data->state))
-		link->watchdog->pause_timer = true;
+	if (link->watchdog) {
+		if (!timer_data->state)
+			link->watchdog->pause_timer = true;
+		else
+			link->watchdog->pause_timer = false;
+		crm_timer_reset(link->watchdog);
+		CAM_DBG(CAM_CRM, "link %x pause_timer %d",
+			link->link_hdl, link->watchdog->pause_timer);
+	}
+
 	spin_unlock_bh(&link->link_state_spin_lock);
 
 end:
@@ -3238,6 +3250,7 @@ static int cam_req_mgr_cb_notify_stop(
 		goto end;
 	}
 	crm_timer_reset(link->watchdog);
+	link->watchdog->pause_timer = true;
 	spin_unlock_bh(&link->link_state_spin_lock);
 
 	task = cam_req_mgr_workq_get_task(link->workq);
@@ -4286,6 +4299,8 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 					link->link_hdl);
 				rc = -EFAULT;
 			}
+			/* Pause the timer before sensor stream on */
+			link->watchdog->pause_timer = true;
 			/* notify nodes */
 			for (j = 0; j < link->num_devs; j++) {
 				dev = &link->l_dev[j];

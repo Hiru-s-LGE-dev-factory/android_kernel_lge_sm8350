@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -133,9 +133,11 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_CSID_CLOCK_DUMP,
 	CAM_ISP_HW_CMD_TPG_CORE_CFG_CMD,
 	CAM_ISP_HW_CMD_CSID_CHANGE_HALT_MODE,
-	CAM_ISP_HW_CMD_DISABLE_UBWC_COMP,
 	CAM_ISP_HW_CMD_SET_SFE_DEBUG_CFG,
 	CAM_ISP_HW_CMD_QUERY_BUS_CAP,
+	CAM_ISP_HW_CMD_GET_CLOCK_RATE,
+	CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE,
+	CAM_ISP_HW_DUMP_HW_SRC_CLK_RATE,
 	CAM_ISP_HW_CMD_MAX,
 };
 
