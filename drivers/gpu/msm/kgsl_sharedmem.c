@@ -999,12 +999,10 @@ static int kgsl_system_alloc_pages(u64 size, struct page ***pages,
 	struct scatterlist sg;
 	struct page **local;
 	int i, npages = size >> PAGE_SHIFT;
-	memset(&sg, 0, sizeof(sg));
+
 	local = kvcalloc(npages, sizeof(*pages), GFP_KERNEL | __GFP_NORETRY);
-	if (!local){
-		printk("## kgsl_system_alloc_pages - kvcalloc failed");
+	if (!local)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < npages; i++) {
 		gfp_t gfp = __GFP_ZERO | __GFP_HIGHMEM |
@@ -1015,8 +1013,6 @@ static int kgsl_system_alloc_pages(u64 size, struct page ***pages,
 			for (i = i - 1; i >= 0; i--)
 				__free_pages(local[i], get_order(PAGE_SIZE));
 			kvfree(local);
-                   	local = NULL;
-			printk("## kgsl_system_alloc_pages - alloc_pages failed");
 			return -ENOMEM;
 		}
 
@@ -1117,10 +1113,8 @@ static int kgsl_alloc_pages(struct kgsl_device *device,
 		count = kgsl_pool_alloc_pages(size, &pages, device->dev);
 	}
 
-	if (count < 0){
-		printk("## kgsl_alloc_pages failed error=%d", count);
+	if (count < 0)
 		return count;
-	}
 
 	memdesc->pages = pages;
 	memdesc->size = size;
