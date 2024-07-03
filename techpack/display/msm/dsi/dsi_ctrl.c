@@ -1373,8 +1373,21 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
 
-	/* check if custom dma scheduling line needed */
-	if (flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED)
+	/*
+	 * Always enable DMA scheduling for video mode panel.
+	 *
+	 * In video mode panel, if the DMA is triggered very close to
+	 * the beginning of the active window and the DMA transfer
+	 * happens in the last line of VBP, then the HW state will
+	 * stay in ‘wait’ and return to ‘idle’ in the first line of VFP.
+	 * But somewhere in the middle of the active window, if SW
+	 * disables DSI command mode engine while the HW is still
+	 * waiting and re-enable after timing engine is OFF. So the
+	 * HW never ‘sees’ another vblank line and hence it gets
+	 * stuck in the ‘wait’ state.
+	 */
+	if ((flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED) ||
+		(dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE))
 		dsi_configure_command_scheduling(dsi_ctrl, cmd_mem);
 
 	dsi_ctrl->cmd_mode = (dsi_ctrl->host_config.panel_mode ==
@@ -1492,6 +1505,39 @@ static void dsi_ctrl_validate_msg_flags(struct dsi_ctrl *dsi_ctrl,
 		*flags &= ~DSI_CTRL_CMD_ASYNC_WAIT;
 }
 
+/**
+ * dsi_ctrl_clear_slave_dma_status -   API to clear slave DMA status
+ * @dsi_ctrl:                   DSI controller handle.
+ * @flags:                      Modifiers
+ */
+static void dsi_ctrl_clear_slave_dma_status(struct dsi_ctrl *dsi_ctrl, u32 flags)
+{
+	struct dsi_ctrl_hw_ops dsi_hw_ops;
+	u32 status = 0;
+
+	if (!dsi_ctrl) {
+		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
+		return;
+	}
+
+	/* Return if this is not the last command */
+	if (!(flags & DSI_CTRL_CMD_LAST_COMMAND))
+		return;
+
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY);
+
+	dsi_hw_ops = dsi_ctrl->hw.ops;
+
+	status = dsi_hw_ops.poll_slave_dma_status(&dsi_ctrl->hw);
+
+	if (status) {
+		status |= (DSI_CMD_MODE_DMA_DONE | DSI_BTA_DONE);
+		dsi_hw_ops.clear_interrupt_status(&dsi_ctrl->hw,
+						status);
+		SDE_EVT32(dsi_ctrl->cell_index, status);
+	}
+}
+
 static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 			  const struct mipi_dsi_msg *msg,
 			  u32 *flags)
@@ -1523,6 +1569,9 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 
 	if (dsi_ctrl->dma_wait_queued)
 		dsi_ctrl_flush_cmd_dma_queue(dsi_ctrl);
+
+	if (!(*flags & DSI_CTRL_CMD_BROADCAST_MASTER))
+		dsi_ctrl_clear_slave_dma_status(dsi_ctrl, *flags);
 
 	if (*flags & DSI_CTRL_CMD_NON_EMBEDDED_MODE) {
 		cmd_mem.offset = dsi_ctrl->cmd_buffer_iova;

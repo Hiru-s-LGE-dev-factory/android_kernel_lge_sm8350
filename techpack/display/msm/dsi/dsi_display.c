@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 #include <linux/list.h>
 #include <linux/of.h>
@@ -1520,6 +1520,14 @@ static ssize_t debugfs_misr_setup(struct file *file,
 	display->misr_frame_count = frame_count;
 
 	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto unlock;
+	}
+
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
 	if (rc) {
@@ -1571,6 +1579,14 @@ static ssize_t debugfs_misr_read(struct file *file,
 		return -ENOMEM;
 
 	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto error;
+	}
+
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
 	if (rc) {
@@ -1668,6 +1684,15 @@ static ssize_t debugfs_esd_trigger_check(struct file *file,
 
 	display->esd_trigger = esd_trigger;
 
+	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto unlock;
+	}
+
 	if (display->esd_trigger) {
 		DSI_INFO("ESD attack triggered by user\n");
 		rc = dsi_panel_trigger_esd_attack(display->panel,
@@ -1679,6 +1704,8 @@ static ssize_t debugfs_esd_trigger_check(struct file *file,
 	}
 
 	rc = len;
+unlock:
+	mutex_unlock(&display->display_lock);
 error:
 	kfree(buf);
 	return rc;
@@ -2684,7 +2711,7 @@ static int dsi_display_parse_boot_display_selection(void)
 		strlcpy(disp_buf, boot_displays[i].boot_param,
 			MAX_CMDLINE_PARAM_LEN);
 
-		pos = strnstr(disp_buf, ":", MAX_CMDLINE_PARAM_LEN);
+		pos = strnstr(disp_buf, ":", strlen(disp_buf));
 
 		/* Use ':' as a delimiter to retrieve the display name */
 		if (!pos) {
@@ -4300,10 +4327,13 @@ static int dsi_display_res_init(struct dsi_display *display)
 	 * In trusted vm, the connectors will not be enabled
 	 * until the HW resources are assigned and accepted.
 	 */
-	if (display->trusted_vm_env)
+	if (display->trusted_vm_env) {
 		display->is_active = false;
-	else
+		display->hw_ownership = false;
+	} else {
 		display->is_active = true;
+		display->hw_ownership = true;
+	}
 
 	return 0;
 error_ctrl_put:
@@ -4736,7 +4766,6 @@ static int _dsi_display_dyn_update_clks(struct dsi_display *display,
 		dsi_phy_dynamic_refresh_clear(ctrl->phy);
 	}
 
-defer_dfps_wait:
 	rc = dsi_clk_update_parent(enable_clk,
 			&display->clock_info.mux_clks);
 	if (rc)
@@ -4768,7 +4797,20 @@ recover_byte_clk:
 exit:
 	dsi_clk_disable_unprepare(&display->clock_info.src_clks);
 
+defer_dfps_wait:
 	return rc;
+}
+
+void dsi_display_dfps_update_parent(struct dsi_display *display)
+{
+	int rc = 0;
+
+	rc = dsi_clk_update_parent(&display->clock_info.src_clks,
+			      &display->clock_info.mux_clks);
+	if (rc)
+		DSI_ERR("could not switch back to src clks %d\n", rc);
+
+	dsi_clk_disable_unprepare(&display->clock_info.src_clks);
 }
 
 static int dsi_display_dynamic_clk_switch_vid(struct dsi_display *display,
@@ -5558,18 +5600,32 @@ end:
 
 static int dsi_display_pre_release(void *data)
 {
+	struct dsi_display *display;
+
 	if (!data)
 		return -EINVAL;
 
-	dsi_display_ctrl_irq_update((struct dsi_display *)data, false);
+	display = (struct dsi_display *)data;
+	mutex_lock(&display->display_lock);
+	display->hw_ownership = false;
+	mutex_unlock(&display->display_lock);
+
+	dsi_display_ctrl_irq_update(display, false);
 
 	return 0;
 }
 
 static int dsi_display_pre_acquire(void *data)
 {
+	struct dsi_display *display;
+
 	if (!data)
 		return -EINVAL;
+
+	display = (struct dsi_display *)data;
+	mutex_lock(&display->display_lock);
+	display->hw_ownership = true;
+	mutex_unlock(&display->display_lock);
 
 	dsi_display_ctrl_irq_update((struct dsi_display *)data, true);
 
@@ -5798,6 +5854,8 @@ error_ctrl_deinit:
 		display_ctrl = &display->ctrl[i];
 		(void)dsi_phy_drv_deinit(display_ctrl->phy);
 		(void)dsi_ctrl_drv_deinit(display_ctrl->ctrl);
+		dsi_ctrl_put(display_ctrl->ctrl);
+		dsi_phy_put(display_ctrl->phy);
 	}
 	(void)dsi_display_debugfs_deinit(display);
 error:
@@ -6027,7 +6085,8 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, display);
 
 	/* initialize display in firmware callback */
-	if (!boot_disp->boot_disp_en &&
+	if (!(boot_displays[DSI_PRIMARY].boot_disp_en ||
+			boot_displays[DSI_SECONDARY].boot_disp_en) &&
 			IS_ENABLED(CONFIG_DSI_PARSER) &&
 			!display->trusted_vm_env) {
 		if (!strcmp(display->display_type, "primary"))
@@ -7851,6 +7910,7 @@ int dsi_display_prepare(struct dsi_display *display)
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 	mutex_lock(&display->display_lock);
 
+	display->hw_ownership = true;
 	mode = display->panel->cur_mode;
 
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
@@ -8906,6 +8966,7 @@ int dsi_display_unprepare(struct dsi_display *display)
 			DSI_ERR("[%s] panel post-unprepare failed, rc=%d\n",
 			       display->name, rc);
 	}
+	display->hw_ownership = false;
 
 	mutex_unlock(&display->display_lock);
 
